@@ -27,6 +27,7 @@ Keys:
 - `T` — switch between floor and tabletop modes.
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
 - `E` — simulated emergency stop.
+- `F` — toggle an invalid-range-sensor fault for the retry/stop check.
 
 The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
 

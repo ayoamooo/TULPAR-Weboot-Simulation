@@ -27,6 +27,7 @@ from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
+from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 
 
@@ -89,6 +90,9 @@ class TulparController:
         self.action = None
         self.target = None
         self.stop_detector = WheelStopDetector()
+        self.range_safety = RangeSafetyMonitor()
+        self.range_fault_injected = False
+        self.range_retry_announced = False
         self.pending_stop_time = None
         self.emotion = "neutral"
         self.last_face_frame_time = -1.0
@@ -372,6 +376,31 @@ class TulparController:
         self.log("simulated_pointing_pose", "set", target=target_label)
 
     def update_approach(self):
+        range_m = float("nan") if self.range_fault_injected else float(self.range_sensor.getValue())
+        range_decision = self.range_safety.evaluate(
+            range_m, max_range_m=1.5, stop_distance_m=0.25
+        )
+        if range_decision.status == "retry":
+            self.tracks(0.0, 0.0)
+            if not self.range_retry_announced:
+                self.say("The front sensor gave an invalid reading. Checking once more.")
+                self.log("range_sensor", "retry", reason="invalid_reading")
+                self.range_retry_announced = True
+            return
+        if range_decision.status == "sensor_fault":
+            self.log("range_sensor", "stopped", reason="two_invalid_readings")
+            self.range_retry_announced = False
+            self.stop("range_sensor_failed")
+            return
+        if range_decision.status == "obstacle":
+            self.log("range_sensor", "stopped", reason="obstacle", distance_m=round(range_decision.distance_m, 3))
+            self.range_retry_announced = False
+            self.stop("front_obstacle")
+            return
+        if self.range_retry_announced:
+            self.log("range_sensor", "retry_recovered")
+            self.range_retry_announced = False
+
         x, y, _ = self.gps.getValues()
         yaw = self.imu.getRollPitchYaw()[2]
         command = approach_command(
@@ -436,6 +465,9 @@ class TulparController:
             self.draw_face("angry" if self.emergency_stop else "neutral")
             self.say("Emergency stop active." if self.emergency_stop else "Emergency stop cleared.")
             self.log("emergency_stop", "active" if self.emergency_stop else "cleared")
+        elif value == "range_fault":
+            self.range_fault_injected = not self.range_fault_injected
+            self.log("range_sensor_fault_injection", "enabled" if self.range_fault_injected else "disabled")
         else:
             self.set_emotion(value)
 
@@ -475,6 +507,7 @@ class TulparController:
             ord("T"): "mode", ord("E"): "emergency", ord("H"): "happy", ord("A"): "angry",
             ord("D"): "sad", ord("P"): "surprised", ord("Y"): "sleepy", ord("W"): "wink",
             ord("O"): "love", ord("I"): "thinking", ord("N"): "neutral",
+            ord("F"): "range_fault",
         }
         command = mapping.get(key)
         if command:

@@ -65,7 +65,12 @@ DEF MARKER_A Solid {
     Shape { appearance PBRAppearance { baseColor 0.95 0.62 0.15 emissiveColor 0.22 0.09 0.01 } geometry Cylinder { radius 0.14 height 0.03 } }
     Pose { translation 0 0 0.28 children [ Shape { appearance PBRAppearance { baseColor 1 0.72 0.22 emissiveColor 0.32 0.12 0.01 } geometry Box { size 0.10 0.05 0.50 } } ] }
   ]
-  boundingObject Cylinder { radius 0.14 height 0.03 }
+  boundingObject Group {
+    children [
+      Cylinder { radius 0.14 height 0.03 }
+      Pose { translation 0 0 0.28 children [ Box { size 0.10 0.05 0.50 } ] }
+    ]
+  }
 }
 DEF MARKER_B Solid {
   translation 0.85 1.95 0.16
@@ -76,7 +81,12 @@ DEF MARKER_B Solid {
     Shape { appearance PBRAppearance { baseColor 0.58 0.20 0.88 emissiveColor 0.12 0.02 0.22 } geometry Cylinder { radius 0.14 height 0.03 } }
     Pose { translation 0 0 0.28 children [ Shape { appearance PBRAppearance { baseColor 0.70 0.38 1 emissiveColor 0.16 0.04 0.30 } geometry Box { size 0.10 0.05 0.50 } } ] }
   ]
-  boundingObject Cylinder { radius 0.14 height 0.03 }
+  boundingObject Group {
+    children [
+      Cylinder { radius 0.14 height 0.03 }
+      Pose { translation 0 0 0.28 children [ Box { size 0.10 0.05 0.50 } ] }
+    ]
+  }
 }
 
 # Operator figure. The pose is deliberately simple and visible from the robot camera.

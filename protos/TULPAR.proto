@@ -155,7 +155,7 @@ Robot {
       }
     }
     Camera { translation 0.15 0 0.50 rotation 0 1 0 -1.5708 name "robot camera" width 640 height 480 fieldOfView 1.15 recognition Recognition { } }
-    DistanceSensor { translation 0.20 0 0.12 rotation 0 1 0 -1.5708 name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1500 0 ] aperture 0.28 }
+    DistanceSensor { translation 0.205 0 0.22 rotation 0 1 0 -1.5708 name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1.5 0 ] aperture 0.28 }
     Speaker { name "speaker" }
     GPS { name "gps" }
     InertialUnit { name "imu" }
