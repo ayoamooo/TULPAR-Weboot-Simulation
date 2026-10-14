@@ -1,9 +1,12 @@
 import unittest
 
-from core.face_animation import eye_pose
+from core.face_animation import display_oval_from_bounds, eye_pose, mouth_curve_points
 
 
 class FaceAnimationTests(unittest.TestCase):
+    def test_display_oval_bounds_convert_to_center_and_radii(self):
+        self.assertEqual(display_oval_from_bounds(54, 81, 54, 62), (81, 112, 27, 31))
+
     def test_neutral_face_blinks_periodically(self):
         self.assertGreater(eye_pose("neutral", 1.0).left_open, 0.8)
         blink = eye_pose("neutral", 3.98)
@@ -20,6 +23,14 @@ class FaceAnimationTests(unittest.TestCase):
     def test_wink_is_asymmetric(self):
         pose = eye_pose("wink", 2.5)
         self.assertNotEqual(pose.left_open, pose.right_open)
+
+    def test_smile_and_frown_curves_use_supported_line_points(self):
+        smile = mouth_curve_points("happy")
+        frown = mouth_curve_points("sad")
+        self.assertEqual(len(smile), 13)
+        self.assertGreater(smile[6][1], smile[0][1])
+        self.assertLess(frown[6][1], frown[0][1])
+        self.assertEqual(mouth_curve_points("neutral"), ())
 
 
 if __name__ == "__main__":

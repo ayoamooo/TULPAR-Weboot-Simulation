@@ -12,6 +12,11 @@ class EyePose:
     pupil_y: float
 
 
+def display_oval_from_bounds(x: int, y: int, width: int, height: int) -> tuple[int, int, int, int]:
+    """Convert a top-left rectangle to Webots Display's centre-and-radii format."""
+    return (x + width // 2, y + height // 2, max(1, width // 2), max(1, height // 2))
+
+
 def _blink(time_s: float, period_s: float = 4.6, offset_s: float = 0.7) -> float:
     phase = (time_s + offset_s) % period_s
     duration = 0.16
@@ -51,3 +56,24 @@ def eye_pose(emotion: str, time_s: float) -> EyePose:
     else:
         gaze_x = 0.08 * math.sin(time_s * 0.8)
     return EyePose(left_open, right_open, gaze_x, gaze_y)
+
+
+def mouth_curve_points(emotion: str, segments: int = 12) -> tuple[tuple[int, int], ...]:
+    """Return points for a smile or frown using Display-compatible line segments."""
+    if segments < 1:
+        raise ValueError("segments must be positive")
+    if emotion in ("happy", "love", "wink"):
+        start, control, end = (80, 190), (128, 220), (176, 190)
+    elif emotion == "sad":
+        start, control, end = (80, 210), (128, 180), (176, 210)
+    else:
+        return ()
+
+    points = []
+    for index in range(segments + 1):
+        t = index / segments
+        inverse = 1.0 - t
+        x = inverse * inverse * start[0] + 2 * inverse * t * control[0] + t * t * end[0]
+        y = inverse * inverse * start[1] + 2 * inverse * t * control[1] + t * t * end[1]
+        points.append((round(x), round(y)))
+    return tuple(points)
