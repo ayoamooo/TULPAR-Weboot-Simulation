@@ -8,6 +8,8 @@ VISIBLE_DETAILS = (
     "target",
     "expected",
     "selected",
+    "image_x",
+    "image_y",
     "reason",
     "distance_m",
     "pointing_error_deg",

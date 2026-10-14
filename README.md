@@ -37,7 +37,7 @@ The scene is a software simulation. It does not establish physical braking dista
 
 For microphone and local dialogue setup, see [`docs/voice-setup.md`](docs/voice-setup.md). Without a Vosk model directory, microphone input is disabled and keyboard controls remain available. Without the Ollama service, ordinary conversation reports an unavailable local model; fixed commands such as `stop` continue to be handled by the controller.
 
-Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If gesture markers or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
+Approach to the operator requires a fresh camera recognition of the operator. The simulation then uses the operator's Webots world pose for navigation; that pose is simulator ground truth rather than a vision-model estimate. Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If the operator, gesture markers, or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
 
 ## Trial plan
 

@@ -27,7 +27,12 @@ from core.dialogue import DialogueError, generate_local_dialogue, generate_local
 from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
-from core.pointing import ImagePoint, select_pointed_target, update_selection_success
+from core.pointing import (
+    ImagePoint,
+    recognized_world_target,
+    select_pointed_target,
+    update_selection_success,
+)
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
@@ -36,6 +41,7 @@ from core.viewpoint import look_at_orientation
 
 TIME_STEP = 32
 APPROACH_DISTANCE = 0.50
+MAX_RECOGNITION_AGE = 1.25
 MAX_SPEED = 3.0
 TURN_SPEED = 1.7
 ARRIVAL_TOLERANCE = 0.08
@@ -74,11 +80,14 @@ class TulparController:
             "target-A": self.robot.getFromDef("MARKER_A"),
             "target-B": self.robot.getFromDef("MARKER_B"),
         }
+        self.operator_node = self.robot.getFromDef("OPERATOR")
         self.pointing_nodes = {
             "operator-shoulder": self.robot.getFromDef("OPERATOR_SHOULDER"),
             "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
         }
         self.latest_recognition = {}
+        self.last_recognition_time = None
+        self.last_recognition_refresh = -1.0
         self.last_selected_marker = None
         self.pointing_pose_ready_time = 0.0
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
@@ -414,13 +423,44 @@ class TulparController:
         self.say("I am coming.")
 
     def refresh_recognition(self):
-        """Snapshot recognized model labels and image centres from the camera."""
+        """Snapshot camera recognitions at the configured one-second cadence."""
+        now = self.robot.getTime()
+        if now - self.last_recognition_refresh < 1.0:
+            return
+        self.last_recognition_refresh = now
         self.latest_recognition = {}
         for item in self.camera.getRecognitionObjects():
             label = item.getModel()
             if label:
                 x, y = item.getPositionOnImage()
                 self.latest_recognition[label] = (float(x), float(y))
+        self.last_recognition_time = now
+
+    def detected_operator_target(self):
+        """Use camera visibility as a gate before reading the simulated pose."""
+        now = self.robot.getTime()
+        if (
+            self.last_recognition_time is None
+            or now - self.last_recognition_time > MAX_RECOGNITION_AGE
+        ):
+            self.log("come_to_me", "rejected_vision", reason="recognition_frame_stale")
+            self.say("I need a fresh camera image. Please repeat the command.")
+            return None
+        target = recognized_world_target(
+            self.latest_recognition,
+            "operator-torso",
+            self.operator_node.getPosition(),
+        )
+        if target is None:
+            self.log("come_to_me", "rejected_vision", reason="operator_not_visible")
+            self.say("I cannot see you. Please move into view and repeat the command.")
+            return None
+        image_x, image_y = self.latest_recognition["operator-torso"]
+        self.log(
+            "come_to_me", "vision_target_selected", target="operator",
+            image_x=round(image_x, 1), image_y=round(image_y, 1),
+        )
+        return target
 
     def pointed_marker_target(self):
         self.last_selected_marker = None
@@ -556,7 +596,9 @@ class TulparController:
 
     def command(self, value):
         if value == "operator":
-            self.begin_approach((1.45, -1.10), "come_to_me")
+            target = self.detected_operator_target()
+            if target is not None:
+                self.begin_approach(target, "come_to_me")
         elif value == "marker":
             target = self.pointed_marker_target()
             if target is not None:

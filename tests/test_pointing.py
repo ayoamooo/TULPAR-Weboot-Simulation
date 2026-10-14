@@ -1,6 +1,11 @@
 import unittest
 
-from core.pointing import ImagePoint, select_pointed_target, update_selection_success
+from core.pointing import (
+    ImagePoint,
+    recognized_world_target,
+    select_pointed_target,
+    update_selection_success,
+)
 
 
 class PointingSelectionTests(unittest.TestCase):
@@ -54,6 +59,27 @@ class PointingSelectionTests(unittest.TestCase):
         self.assertFalse(status)
         status = update_selection_success(status, "target-A", "target-A")
         self.assertTrue(status)
+
+    def test_operator_target_requires_a_visible_camera_label(self):
+        self.assertIsNone(
+            recognized_world_target({}, "operator-torso", (1.45, -1.1, 0.0))
+        )
+        self.assertEqual(
+            recognized_world_target(
+                {"operator-torso": (320.0, 240.0)},
+                "operator-torso",
+                (1.45, -1.1, 0.0),
+            ),
+            (1.45, -1.1),
+        )
+
+    def test_visible_target_requires_finite_world_coordinates(self):
+        with self.assertRaises(ValueError):
+            recognized_world_target(
+                {"operator-torso": (10.0, 20.0)},
+                "operator-torso",
+                (float("nan"), -1.1, 0.0),
+            )
 
 
 if __name__ == "__main__":
