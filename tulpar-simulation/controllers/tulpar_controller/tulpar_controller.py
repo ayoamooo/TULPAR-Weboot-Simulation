@@ -23,8 +23,14 @@ class TulparController:
         self.robot = Robot()
         self.keyboard = Keyboard()
         self.keyboard.enable(TIME_STEP)
-        self.left_track = self.robot.getDevice("left track motor")
-        self.right_track = self.robot.getDevice("right track motor")
+        self.left_tracks = [
+            self.robot.getDevice("left front track motor"),
+            self.robot.getDevice("left rear track motor"),
+        ]
+        self.right_tracks = [
+            self.robot.getDevice("right front track motor"),
+            self.robot.getDevice("right rear track motor"),
+        ]
         self.left_arm = self.robot.getDevice("left shoulder")
         self.right_arm = self.robot.getDevice("right shoulder")
         self.gps = self.robot.getDevice("gps")
@@ -35,7 +41,7 @@ class TulparController:
         self.camera = self.robot.getDevice("robot camera")
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
             device.enable(TIME_STEP)
-        for motor in (self.left_track, self.right_track):
+        for motor in (*self.left_tracks, *self.right_tracks):
             motor.setPosition(float("inf"))
             motor.setVelocity(0.0)
         self.mode = "floor"
@@ -104,8 +110,10 @@ class TulparController:
     def tracks(self, left, right):
         if self.mode != "floor" or self.emergency_stop:
             left = right = 0.0
-        self.left_track.setVelocity(left)
-        self.right_track.setVelocity(right)
+        for motor in self.left_tracks:
+            motor.setVelocity(left)
+        for motor in self.right_tracks:
+            motor.setVelocity(right)
 
     def stop(self, reason="command"):
         self.tracks(0.0, 0.0)
