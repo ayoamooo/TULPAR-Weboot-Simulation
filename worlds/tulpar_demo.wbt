@@ -3,7 +3,7 @@
 EXTERNPROTO "../protos/TULPAR.proto"
 
 WorldInfo { title "TULPAR controlled university demonstration" basicTimeStep 32 }
-Viewpoint { orientation -0.465 0.218 0.858 1.18 position 3.9 -5.2 3.55 }
+DEF SCENE_VIEW Viewpoint { orientation -0.465 0.218 0.858 1.18 position 3.9 -5.2 3.55 }
 Background { skyColor [ 0.035 0.07 0.11 ] }
 TexturedBackground { }
 TexturedBackgroundLight { }

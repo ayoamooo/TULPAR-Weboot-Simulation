@@ -1,6 +1,6 @@
 # Development roadmap
 
-1. **Scene and robot model** — source includes a 0.60 m target height, a screen surface driven by the Webots Display texture, a forward-facing camera, two recognition-labelled markers, exposed driven wheels, and fixed two-finger claws; visual verification is pending.
+1. **Scene and robot model** — source includes a 0.60 m target height, a screen surface driven by the Webots Display texture, a forward-facing camera, overview/overhead/robot-follow viewpoint presets, two recognition-labelled markers, exposed driven wheels, and fixed two-finger claws; visual verification is pending.
 2. **Physics and movement** — four simulated drive wheels are connected to the controller. The controller now uses X/Y as the floor plane; contact, wheel direction, and braking still need Webots runtime verification.
 3. **Interaction state** — the mode key relocates the simulated robot between floor and tabletop placement between scenarios. Trial starts reset a repeatable pose; stop trials begin with an approach in progress, and a pass requires the relevant arrival, confirmed stop, or completed greeting state. Emergency-stop state, animated face states, and one-retry range-sensor fail-safe are implemented in source.
 4. **Local voice and dialogue** — Vosk microphone capture, command-policy routing, background local Ollama dialogue, and Webots speech output are connected in source. Runtime validation still requires a local Vosk model, running Ollama service, and Webots installation.

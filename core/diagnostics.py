@@ -4,6 +4,7 @@
 VISIBLE_DETAILS = (
     "trial_id",
     "scenario",
+    "view",
     "target",
     "expected",
     "selected",

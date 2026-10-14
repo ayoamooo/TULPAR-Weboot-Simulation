@@ -31,6 +31,7 @@ from core.pointing import ImagePoint, select_pointed_target, update_selection_su
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
+from core.viewpoint import look_at_orientation
 
 
 TIME_STEP = 32
@@ -89,6 +90,12 @@ class TulparController:
             motor.setPosition(float("inf"))
             motor.setVelocity(0.0)
         self.mode = "floor"
+        self.camera_view = "overview"
+        self.viewpoint_node = self.robot.getFromDef("SCENE_VIEW")
+        if self.viewpoint_node is None:
+            raise RuntimeError("world must define the SCENE_VIEW Viewpoint")
+        self.viewpoint_position = self.viewpoint_node.getField("position")
+        self.viewpoint_orientation = self.viewpoint_node.getField("orientation")
         self.self_node = self.robot.getSelf()
         self.translation_field = self.self_node.getField("translation")
         self.rotation_field = self.self_node.getField("rotation")
@@ -137,6 +144,7 @@ class TulparController:
         else:
             self.log("microphone", "disabled", reason="TULPAR_VOSK_MODEL is not configured")
         self.draw_face("neutral")
+        self.set_camera_view("overview")
         self.say("TULPAR is ready.")
         self.log("startup", "ready")
 
@@ -234,6 +242,42 @@ class TulparController:
         with self.event_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
         print(format_status_event(row), flush=True)
+
+    def set_camera_view(self, view=None):
+        """Cycle overview, overhead, and robot-follow camera presets."""
+        views = ("overview", "overhead", "robot")
+        if view is None:
+            view = views[(views.index(self.camera_view) + 1) % len(views)]
+        if view not in views:
+            raise ValueError(f"unknown camera view: {view}")
+        self.camera_view = view
+        if view == "overview":
+            position, target, up = (4.5, -6.2, 4.1), (0.0, 0.0, 0.55), (0.0, 0.0, 1.0)
+            self._apply_viewpoint(position, target, up)
+        elif view == "overhead":
+            position, target, up = (0.0, -0.1, 7.0), (0.0, -0.1, 0.0), (0.0, -1.0, 0.0)
+            self._apply_viewpoint(position, target, up)
+        else:
+            self.update_robot_follow_view()
+        self.log("viewpoint", "changed", view=view)
+
+    def _apply_viewpoint(self, position, target, up=(0.0, 0.0, 1.0)):
+        self.viewpoint_position.setSFVec3f(list(position))
+        self.viewpoint_orientation.setSFRotation(
+            list(look_at_orientation(position, target, up))
+        )
+
+    def update_robot_follow_view(self):
+        if self.camera_view != "robot":
+            return
+        x, y, z = self.gps.getValues()
+        yaw = self.imu.getRollPitchYaw()[2]
+        local_x, local_y = -1.15, -1.55
+        offset_x = math.cos(yaw) * local_x - math.sin(yaw) * local_y
+        offset_y = math.sin(yaw) * local_x + math.cos(yaw) * local_y
+        position = (x + offset_x, y + offset_y, z + 1.05)
+        target = (x, y, z + 0.30)
+        self._apply_viewpoint(position, target)
 
     def say(self, message, utterance_type="response"):
         self.speaker.speak(message, 1.0)
@@ -710,10 +754,13 @@ class TulparController:
             self.set_simulated_pointing_target("target-A")
         elif key == ord("4"):
             self.set_simulated_pointing_target("target-B")
+        elif key == ord("C"):
+            self.set_camera_view()
 
     def run(self):
         try:
             while self.robot.step(TIME_STEP) != -1:
+                self.update_robot_follow_view()
                 self.update_face_animation()
                 self.refresh_recognition()
                 self.update_stop_measurement()

@@ -29,6 +29,7 @@ Keys:
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
 - `E` — simulated emergency stop.
 - `F` — toggle an invalid-range-sensor fault for the retry/stop check.
+- `C` — cycle the overview, overhead, and robot-following scene views.
 - `5` — start the next planned technical trial (requires the listed placement mode).
 - `6` / `7` — record the active trial as pass / fail after checking its stated outcome.
 
