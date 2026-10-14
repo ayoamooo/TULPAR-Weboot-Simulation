@@ -28,3 +28,7 @@ Keys:
 - `E` — simulated emergency stop.
 
 The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
+
+## Trial plan
+
+`scenarios/technical-trials.csv` lists each of the 40 planned trials separately. Regenerate it with `python -m core.trial_protocol` after changing the allocation. It contains inputs only; results and timestamps must come from actual simulation runs. The 10 greeting trials are split evenly between tabletop and floor placement.
