@@ -1,0 +1,126 @@
+#VRML_SIM R2025a utf8
+
+PROTO TULPAR [
+  field SFVec3f    translation 0 0 0.055
+  field SFRotation rotation    0 0 1 0
+  field SFString   name        "TULPAR"
+  field SFString   controller  "tulpar_controller"
+]
+{
+Robot {
+  translation IS translation
+  rotation IS rotation
+  name IS name
+  controller IS controller
+  children [
+    # Low tracked base: target envelope approximately 0.35 m x 0.30 m.
+    DEF BASE Shape {
+      appearance PBRAppearance { baseColor 0.08 0.16 0.22 roughness 0.55 metalness 0.15 }
+      geometry Box { size 0.36 0.30 0.10 }
+    }
+    Pose {
+      translation 0 0.18 0
+      children [
+        DEF TRACK_LEFT Shape {
+          appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 }
+          geometry Box { size 0.39 0.065 0.12 }
+        }
+      ]
+    }
+    Pose {
+      translation 0 -0.18 0
+      children [ USE TRACK_LEFT ]
+    }
+    # Track details are visual; the motor devices provide the controlled drive path.
+    Shape {
+      appearance PBRAppearance { baseColor 0.63 0.72 0.78 roughness 0.48 metalness 0.12 }
+      geometry Box { size 0.25 0.20 0.29 }
+    }
+    Pose {
+      translation 0 0 0.25
+      children [
+        Shape {
+          appearance PBRAppearance { baseColor 0.84 0.90 0.93 roughness 0.45 metalness 0.05 }
+          geometry Box { size 0.23 0.18 0.20 }
+        }
+        # Smartphone frame and face panel.
+        Pose {
+          translation 0.121 0 0.035
+          rotation 0 1 0 1.5708
+          children [
+            Shape {
+              appearance PBRAppearance { baseColor 0.015 0.035 0.06 roughness 0.28 metalness 0.2 }
+              geometry Box { size 0.13 0.18 0.012 }
+            }
+            Pose {
+              translation 0 0 0.008
+              children [
+                Shape {
+                  appearance PBRAppearance { baseColor 0.06 0.42 0.56 emissiveColor 0.02 0.15 0.2 roughness 0.35 }
+                  geometry Box { size 0.108 0.155 0.004 }
+                }
+                # Neutral eyes and mouth. The controller later replaces this panel with a drawn Display texture.
+                Pose { translation 0 0.040 0.006 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.97 1 emissiveColor 0.22 0.55 0.65 } geometry Sphere { radius 0.012 } } ] }
+                Pose { translation 0 -0.040 0.006 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.97 1 emissiveColor 0.22 0.55 0.65 } geometry Sphere { radius 0.012 } } ] }
+                Pose { translation 0 -0.005 0.007 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.97 1 emissiveColor 0.22 0.55 0.65 } geometry Box { size 0.028 0.006 0.003 } } ] }
+              ]
+            }
+          ]
+        }
+        # USB camera above the phone.
+        Pose {
+          translation 0.135 0 0.145
+          rotation 0 1 0 1.5708
+          children [
+            Shape { appearance PBRAppearance { baseColor 0.10 0.12 0.14 roughness 0.45 } geometry Box { size 0.055 0.075 0.035 } }
+            Pose { translation 0 0 0.021 children [ Shape { appearance PBRAppearance { baseColor 0.20 0.78 0.92 emissiveColor 0.03 0.18 0.22 } geometry Cylinder { radius 0.014 height 0.004 } } ] }
+          ]
+        }
+      ]
+    }
+    # Two shoulder joints and fixed expressive claws.
+    HingeJoint {
+      jointParameters HingeJointParameters { axis 0 1 0 anchor 0 0.14 0.31 minStop -0.75 maxStop 0.75 }
+      device [ RotationalMotor { name "left shoulder" maxTorque 2.5 maxVelocity 1.4 } PositionSensor { name "left shoulder sensor" } ]
+      endPoint Solid {
+        translation 0 0.14 0.31
+        children [
+          Pose { translation 0.04 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.56 0.68 0.75 roughness 0.52 metalness 0.08 } geometry Box { size 0.17 0.055 0.055 } } ] }
+          Pose { translation 0.145 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.10 0.028 } } ] }
+        ]
+        boundingObject Box { size 0.23 0.11 0.07 }
+        physics Physics { density -1 mass 0.16 }
+      }
+    }
+    HingeJoint {
+      jointParameters HingeJointParameters { axis 0 1 0 anchor 0 -0.14 0.31 minStop -0.75 maxStop 0.75 }
+      device [ RotationalMotor { name "right shoulder" maxTorque 2.5 maxVelocity 1.4 } PositionSensor { name "right shoulder sensor" } ]
+      endPoint Solid {
+        translation 0 -0.14 0.31
+        children [
+          Pose { translation 0.04 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.56 0.68 0.75 roughness 0.52 metalness 0.08 } geometry Box { size 0.17 0.055 0.055 } } ] }
+          Pose { translation 0.145 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.10 0.028 } } ] }
+        ]
+        boundingObject Box { size 0.23 0.11 0.07 }
+        physics Physics { density -1 mass 0.16 }
+      }
+    }
+    Camera { name "robot camera" width 640 height 480 fieldOfView 1.15 }
+    DistanceSensor { name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1500 0 ] aperture 0.28 }
+    Display { name "face display" width 256 height 320 }
+    Speaker { name "speaker" }
+    GPS { name "gps" }
+    InertialUnit { name "imu" }
+    # Differential-drive control is represented through two motors; real motor selection remains open.
+    RotationalMotor { name "left track motor" maxVelocity 7 maxTorque 12 }
+    RotationalMotor { name "right track motor" maxVelocity 7 maxTorque 12 }
+  ]
+  boundingObject Group {
+    children [
+      Box { size 0.39 0.42 0.12 }
+      Pose { translation 0 0 0.25 children [ Box { size 0.25 0.20 0.29 } ] }
+    ]
+  }
+  physics Physics { density -1 mass 8.5 }
+}
+}
