@@ -29,6 +29,7 @@ from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
+from core.trial_recorder import TrialRecorder
 
 
 TIME_STEP = 32
@@ -98,6 +99,9 @@ class TulparController:
         self.last_face_frame_time = -1.0
         self.wave_phase = 0.0
         self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
+        self.trial_recorder = TrialRecorder(
+            Path(__file__).resolve().parents[2] / "logs" / "technical-trial-results.csv"
+        )
         self.event_file.parent.mkdir(exist_ok=True)
         self.transcripts = Queue()
         self.voice_errors = Queue()
@@ -449,6 +453,10 @@ class TulparController:
             self.set_emotion("happy")
             self.log("greeting", "accepted")
         elif value == "mode":
+            if self.trial_recorder.current is not None:
+                self.say("Finish the active trial before changing mode.")
+                self.log("mode", "change_rejected_active_trial")
+                return
             self.stop("mode_change")
             if self.mode == "floor":
                 self.translation_field.setSFVec3f([-2.45, -1.65, 0.575])
@@ -470,6 +478,39 @@ class TulparController:
             self.log("range_sensor_fault_injection", "enabled" if self.range_fault_injected else "disabled")
         else:
             self.set_emotion(value)
+
+    def start_trial(self):
+        trial = self.trial_recorder.start_next(self.robot.getTime())
+        if trial is None:
+            self.say("All planned trials already have recorded outcomes.")
+            self.log("trial", "plan_complete")
+            return
+        if trial.placement != self.mode:
+            self.trial_recorder.cancel()
+            self.say(f"Trial {trial.trial_id} requires {trial.placement} mode.")
+            self.log(
+                "trial", "start_rejected_wrong_mode", trial_id=trial.trial_id,
+                required_mode=trial.placement,
+            )
+            return
+        self.say(f"Trial {trial.trial_id} started. Run: {trial.command}.")
+        self.log(
+            "trial", "started", trial_id=trial.trial_id, scenario=trial.scenario,
+            placement=trial.placement,
+        )
+
+    def finish_trial(self, outcome):
+        try:
+            row = self.trial_recorder.finish(outcome, self.robot.getTime())
+        except RuntimeError:
+            self.say("Start a trial before recording its result.")
+            self.log("trial", "result_rejected_no_active_trial", requested_outcome=outcome)
+            return
+        self.say(f"Trial {row['trial_id']} recorded as {outcome}.")
+        self.log(
+            "trial", "result_recorded", trial_id=row["trial_id"], outcome=outcome,
+            duration_s=float(row["duration_s"]),
+        )
 
     def dispatch_spoken_text(self, text):
         """Route ASR text through the fixed action policy before any actuation.
@@ -512,6 +553,12 @@ class TulparController:
         command = mapping.get(key)
         if command:
             self.command(command)
+        elif key == ord("5"):
+            self.start_trial()
+        elif key == ord("6"):
+            self.finish_trial("pass")
+        elif key == ord("7"):
+            self.finish_trial("fail")
         elif key == ord("3"):
             self.set_simulated_pointing_target("target-A")
         elif key == ord("4"):

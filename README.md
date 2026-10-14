@@ -28,6 +28,8 @@ Keys:
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
 - `E` — simulated emergency stop.
 - `F` — toggle an invalid-range-sensor fault for the retry/stop check.
+- `5` — start the next planned technical trial (requires the listed placement mode).
+- `6` / `7` — record the active trial as pass / fail after checking its stated outcome.
 
 The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
 
@@ -38,3 +40,5 @@ Marker selection uses Webots recognition labels and the image-space alignment be
 ## Trial plan
 
 `scenarios/technical-trials.csv` lists each of the 40 planned trials separately. Regenerate it with `python -m core.trial_protocol` after changing the allocation. It contains inputs only; results and timestamps must come from actual simulation runs. The 10 greeting trials are split evenly between tabletop and floor placement.
+
+The controller writes completed outcomes to `logs/technical-trial-results.csv`. Start a trial with `5`, perform the listed command, then use `6` for pass or `7` for fail. The CSV records the planned scenario and elapsed Webots simulation time only; pass/fail is entered by the operator after observing the defined behavior. It does not automatically calculate command accuracy or response latency, and an unrun trial has no result row. Existing result rows are kept and the controller resumes at the first unrecorded trial ID.
