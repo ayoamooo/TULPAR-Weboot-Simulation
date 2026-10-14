@@ -7,11 +7,11 @@ The first scene represents a controlled university demonstration room. It includ
 ## Intended behaviour
 
 - Floor mode: `come to me`, `go to marker`, and `stop` control the tracked base.
-- Tabletop mode: the tracks remain locked; speech, face states, and arm gestures remain available.
+- Tabletop mode: the tracks remain locked; speech, animated face expressions, and arm gestures remain available.
 - `say hello` runs a non-contact wave with the tracks stopped.
 - The controller records command, mode, outcome, and simulated timing in `logs/tulpar-events.jsonl`.
 
-The initial controller uses keyboard input while the microphone, local speech recognition, and local LLM adapters are added after the scene can be launched and verified. Keyboard input is only a development control path. All future transcripts pass through `core/command_policy.py`; a language model cannot issue unrestricted drive commands.
+The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Allow-listed commands go directly through `core/command_policy.py`; ordinary conversation sends one camera frame per voice turn (capped at one per second) to local Ollama (`qwen2.5vl:3b`) for scene context, then asynchronously asks `qwen3:4b` for a response. The text model can return only a reply and a supported emotion, never a motion command. Webots' Speaker reads replies aloud.
 
 ## Planned launch
 
@@ -27,8 +27,11 @@ Keys:
 - `T` — switch between floor and tabletop modes.
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
 - `E` — simulated emergency stop.
+- `F` — toggle an invalid-range-sensor fault for the retry/stop check.
 
 The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
+
+For microphone and local dialogue setup, see [`docs/voice-setup.md`](docs/voice-setup.md). Without a Vosk model directory, microphone input is disabled and keyboard controls remain available. Without the Ollama service, ordinary conversation reports an unavailable local model; fixed commands such as `stop` continue to be handled by the controller.
 
 Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If gesture markers or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
 

@@ -6,9 +6,14 @@ is independent from it so voice, local LLM, and vision adapters can use the same
 
 from datetime import datetime, timezone
 from pathlib import Path
+from queue import Empty, Full, Queue
+from threading import Thread
+from tempfile import NamedTemporaryFile
 import json
 import math
+import os
 import sys
+import time
 
 from controller import Supervisor, Keyboard
 
@@ -17,8 +22,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.command_policy import allow_action, parse_spoken_command
+from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
+from core.face_animation import eye_pose
+from core.microphone import VoskMicrophone
 from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
+from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 
 
@@ -81,14 +90,117 @@ class TulparController:
         self.action = None
         self.target = None
         self.stop_detector = WheelStopDetector()
+        self.range_safety = RangeSafetyMonitor()
+        self.range_fault_injected = False
+        self.range_retry_announced = False
         self.pending_stop_time = None
         self.emotion = "neutral"
+        self.last_face_frame_time = -1.0
         self.wave_phase = 0.0
         self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
         self.event_file.parent.mkdir(exist_ok=True)
+        self.transcripts = Queue()
+        self.voice_errors = Queue()
+        self.dialogue_requests = Queue(maxsize=4)
+        self.dialogue_results = Queue()
+        self.dialogue_worker = Thread(target=self._dialogue_loop, name="tulpar-dialogue", daemon=True)
+        self.dialogue_worker.start()
+        self.last_vision_sample_time = 0.0
+        self.voice_listener = None
+        model_path = os.environ.get("TULPAR_VOSK_MODEL")
+        if model_path:
+            try:
+                self.voice_listener = VoskMicrophone(
+                    model_path, self.transcripts.put, self.voice_errors.put
+                )
+                self.voice_listener.start()
+                self.log("microphone", "starting", model_path=model_path)
+            except Exception as error:
+                self.voice_errors.put(str(error))
+        else:
+            self.log("microphone", "disabled", reason="TULPAR_VOSK_MODEL is not configured")
         self.draw_face("neutral")
         self.say("TULPAR is ready.")
         self.log("startup", "ready")
+
+    def _dialogue_loop(self):
+        """Keep local LLM latency off the Webots motor-control loop."""
+        while True:
+            request = self.dialogue_requests.get()
+            if request is None:
+                return
+            transcript, image_bytes = request
+            vision_summary = None
+            vision_error = None
+            if image_bytes:
+                try:
+                    vision_summary = generate_local_vision_summary(image_bytes, transcript)
+                except DialogueError as error:
+                    vision_error = str(error)
+            try:
+                result = generate_local_dialogue(transcript, vision_summary)
+                self.dialogue_results.put(("ok", transcript, result, bool(image_bytes), vision_error))
+            except DialogueError as error:
+                self.dialogue_results.put(("error", transcript, str(error), bool(image_bytes), vision_error))
+
+    def capture_dialogue_frame(self):
+        """Capture at most one temporary JPEG frame per second during dialogue."""
+        now = time.monotonic()
+        if now - self.last_vision_sample_time < 1.0:
+            return None
+        image_path = None
+        try:
+            with NamedTemporaryFile(suffix=".jpg", delete=False) as image_file:
+                image_path = Path(image_file.name)
+            if not self.camera.saveImage(str(image_path), 88):
+                self.log("vision", "frame_capture_failed")
+                return None
+            image = image_path.read_bytes()
+            self.last_vision_sample_time = now
+            self.log("vision", "frame_captured", bytes=len(image))
+            return image
+        except Exception as error:
+            self.log("vision", "frame_capture_failed", detail=str(error))
+            return None
+        finally:
+            if image_path:
+                image_path.unlink(missing_ok=True)
+
+    def process_voice_io(self):
+        while True:
+            try:
+                error = self.voice_errors.get_nowait()
+            except Empty:
+                break
+            self.log("microphone", "error", detail=error)
+
+        while True:
+            try:
+                transcript = self.transcripts.get_nowait()
+            except Empty:
+                break
+            self.dispatch_spoken_text(transcript)
+
+        while True:
+            try:
+                status, transcript, result, vision_used, vision_error = self.dialogue_results.get_nowait()
+            except Empty:
+                break
+            if status == "ok":
+                self.set_emotion(result.emotion)
+                self.say(result.response)
+                self.log(
+                    "local_dialogue", "spoken", vision_used=vision_used,
+                    response_char_count=len(result.response), emotion=result.emotion,
+                )
+                if vision_error:
+                    self.log("vision", "model_error", detail=vision_error)
+            else:
+                self.set_emotion("neutral")
+                self.say("My local conversation model is unavailable right now.")
+                self.log("local_dialogue", "error", detail=result, vision_used=vision_used)
+                if vision_error:
+                    self.log("vision", "model_error", detail=vision_error)
 
     def log(self, command, outcome, **extra):
         row = {
@@ -105,41 +217,53 @@ class TulparController:
     def say(self, message):
         self.speaker.speak(message, 1.0)
 
-    def draw_face(self, emotion):
+    def draw_face(self, emotion, time_s=None):
         self.emotion = emotion
+        if time_s is None:
+            time_s = self.robot.getTime()
+        pose = eye_pose(emotion, time_s)
         canvas = self.face
         canvas.setColor(0x071724)
         canvas.fillRectangle(0, 0, 256, 320)
         eye_color = 0x9FF6FF
         mouth_color = 0x66CFE0
+        for x, openness in ((54, pose.left_open), (148, pose.right_open)):
+            eye_height = max(4, int(62 * openness))
+            eye_y = 112 - eye_height // 2
+            canvas.setColor(eye_color)
+            if openness < 0.14:
+                canvas.drawLine(x, 112, x + 54, 112)
+            else:
+                canvas.fillOval(x, eye_y, 54, eye_height)
+                pupil_x = x + 21 + int(8 * pose.pupil_x)
+                pupil_y = 112 + int(14 * pose.pupil_y)
+                pupil_size = max(7, min(15, int(14 * openness)))
+                canvas.setColor(0x06202C)
+                canvas.fillOval(pupil_x, pupil_y - pupil_size // 2, pupil_size, pupil_size)
         canvas.setColor(eye_color)
-        if emotion == "sleepy":
-            canvas.fillRectangle(54, 112, 54, 7)
-            canvas.fillRectangle(148, 112, 54, 7)
-        elif emotion == "wink":
-            canvas.fillRectangle(54, 112, 54, 7)
-            canvas.fillOval(148, 86, 54, 62)
-        elif emotion == "angry":
-            canvas.fillOval(54, 88, 54, 58)
-            canvas.fillOval(148, 88, 54, 58)
+        if emotion == "angry":
             canvas.drawLine(46, 76, 108, 96)
             canvas.drawLine(210, 76, 148, 96)
-        else:
-            canvas.fillOval(54, 86, 54, 62)
-            canvas.fillOval(148, 86, 54, 62)
         canvas.setColor(mouth_color)
         if emotion in ("happy", "love", "wink"):
             canvas.drawArc(78, 175, 100, 58, 10, 160)
         elif emotion == "sad":
             canvas.drawArc(78, 204, 100, 58, 190, 160)
         elif emotion == "surprised":
-            canvas.drawOval(109, 181, 38, 54)
+            mouth_height = 48 + int(6 * math.sin(time_s * 2.4))
+            canvas.drawOval(109, 181, 38, mouth_height)
         elif emotion == "thinking":
             canvas.fillRectangle(96, 206, 64, 7)
         else:
             canvas.fillRectangle(96, 205, 64, 7)
         canvas.setColor(0xD9F8FA)
         canvas.drawText(emotion.upper(), 12, 292)
+        self.last_face_frame_time = time_s
+
+    def update_face_animation(self):
+        now = self.robot.getTime()
+        if now - self.last_face_frame_time >= 0.12:
+            self.draw_face(self.emotion, now)
 
     def tracks(self, left, right):
         if self.mode != "floor" or self.emergency_stop:
@@ -252,6 +376,31 @@ class TulparController:
         self.log("simulated_pointing_pose", "set", target=target_label)
 
     def update_approach(self):
+        range_m = float("nan") if self.range_fault_injected else float(self.range_sensor.getValue())
+        range_decision = self.range_safety.evaluate(
+            range_m, max_range_m=1.5, stop_distance_m=0.25
+        )
+        if range_decision.status == "retry":
+            self.tracks(0.0, 0.0)
+            if not self.range_retry_announced:
+                self.say("The front sensor gave an invalid reading. Checking once more.")
+                self.log("range_sensor", "retry", reason="invalid_reading")
+                self.range_retry_announced = True
+            return
+        if range_decision.status == "sensor_fault":
+            self.log("range_sensor", "stopped", reason="two_invalid_readings")
+            self.range_retry_announced = False
+            self.stop("range_sensor_failed")
+            return
+        if range_decision.status == "obstacle":
+            self.log("range_sensor", "stopped", reason="obstacle", distance_m=round(range_decision.distance_m, 3))
+            self.range_retry_announced = False
+            self.stop("front_obstacle")
+            return
+        if self.range_retry_announced:
+            self.log("range_sensor", "retry_recovered")
+            self.range_retry_announced = False
+
         x, y, _ = self.gps.getValues()
         yaw = self.imu.getRollPitchYaw()[2]
         command = approach_command(
@@ -316,17 +465,21 @@ class TulparController:
             self.draw_face("angry" if self.emergency_stop else "neutral")
             self.say("Emergency stop active." if self.emergency_stop else "Emergency stop cleared.")
             self.log("emergency_stop", "active" if self.emergency_stop else "cleared")
+        elif value == "range_fault":
+            self.range_fault_injected = not self.range_fault_injected
+            self.log("range_sensor_fault_injection", "enabled" if self.range_fault_injected else "disabled")
         else:
             self.set_emotion(value)
 
     def dispatch_spoken_text(self, text):
-        """Accept a validated transcript from a future local ASR adapter.
+        """Route ASR text through the fixed action policy before any actuation.
 
-        This function deliberately does not accept arbitrary LLM output as motion.
+        Movement is dispatched directly from the allow-listed transcript. Only
+        ordinary conversation is sent to the local LLM, which cannot issue actions.
         """
         decision = parse_spoken_command(text)
         if not allow_action(decision, self.mode, self.emergency_stop):
-            self.log("spoken_text", "rejected_by_safety_gate", transcript=text, action=decision.action)
+            self.log("spoken_text", "rejected_by_safety_gate", action=decision.action)
             self.say("That action is unavailable in the current mode.")
             return
         handlers = {
@@ -340,9 +493,13 @@ class TulparController:
         if handler:
             handler()
             return
-        self.log("spoken_text", "conversation_needed", transcript=text)
+        self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
-        self.say("I heard you. The local dialogue service is not connected yet.")
+        try:
+            self.dialogue_requests.put_nowait((text, self.capture_dialogue_frame()))
+        except Full:
+            self.say("Please wait while I finish my last answer.")
+            self.log("local_dialogue", "queue_full")
 
     def keyboard_command(self, key):
         mapping = {
@@ -350,6 +507,7 @@ class TulparController:
             ord("T"): "mode", ord("E"): "emergency", ord("H"): "happy", ord("A"): "angry",
             ord("D"): "sad", ord("P"): "surprised", ord("Y"): "sleepy", ord("W"): "wink",
             ord("O"): "love", ord("I"): "thinking", ord("N"): "neutral",
+            ord("F"): "range_fault",
         }
         command = mapping.get(key)
         if command:
@@ -360,16 +518,26 @@ class TulparController:
             self.set_simulated_pointing_target("target-B")
 
     def run(self):
-        while self.robot.step(TIME_STEP) != -1:
-            self.refresh_recognition()
-            self.update_stop_measurement()
-            key = self.keyboard.getKey()
-            if key != -1:
-                self.keyboard_command(key)
-            if self.action == "approach":
-                self.update_approach()
-            elif self.action == "wave":
-                self.update_wave()
+        try:
+            while self.robot.step(TIME_STEP) != -1:
+                self.update_face_animation()
+                self.refresh_recognition()
+                self.update_stop_measurement()
+                self.process_voice_io()
+                key = self.keyboard.getKey()
+                if key != -1:
+                    self.keyboard_command(key)
+                if self.action == "approach":
+                    self.update_approach()
+                elif self.action == "wave":
+                    self.update_wave()
+        finally:
+            if self.voice_listener:
+                self.voice_listener.stop()
+            try:
+                self.dialogue_requests.put_nowait(None)
+            except Full:
+                pass
 
 
 if __name__ == "__main__":
