@@ -36,6 +36,7 @@ from core.pointing import (
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
+from core.showcase import Showcase
 from core.viewpoint import look_at_orientation
 
 
@@ -54,6 +55,7 @@ class TulparController:
         self.robot = Supervisor()
         self.keyboard = Keyboard()
         self.keyboard.enable(TIME_STEP)
+        self.last_keyboard_key = -1
         self.left_tracks = [
             self.robot.getDevice("left front track motor"),
             self.robot.getDevice("left rear track motor"),
@@ -99,7 +101,7 @@ class TulparController:
             motor.setPosition(float("inf"))
             motor.setVelocity(0.0)
         self.mode = "floor"
-        self.camera_view = "overview"
+        self.camera_view = "side"
         self.viewpoint_node = self.robot.getFromDef("SCENE_VIEW")
         if self.viewpoint_node is None:
             raise RuntimeError("world must define the SCENE_VIEW Viewpoint")
@@ -127,7 +129,19 @@ class TulparController:
         self.emotion = "neutral"
         self.last_face_frame_time = -1.0
         self.wave_phase = 0.0
-        self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
+        self.event_file = Path(os.environ.get(
+            "TULPAR_EVENT_LOG",
+            Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl",
+        ))
+        self.capture_dir = Path(os.environ["TULPAR_CAPTURE_DIR"]) if os.environ.get("TULPAR_CAPTURE_DIR") else None
+        if self.capture_dir:
+            self.capture_dir.mkdir(parents=True, exist_ok=True)
+        self.auto_demo = os.environ.get("TULPAR_AUTO_DEMO") == "1" or self.robot.getWorldPath().endswith("tulpar_showcase.wbt")
+        if self.auto_demo and self.capture_dir is None:
+            self.capture_dir = PROJECT_ROOT / "logs" / "showcase"
+            self.capture_dir.mkdir(parents=True, exist_ok=True)
+        self.auto_demo_stage = 0
+        self.auto_demo_started_at = None
         self.trial_recorder = TrialRecorder(
             Path(__file__).resolve().parents[2] / "logs" / "technical-trial-results.csv"
         )
@@ -153,9 +167,12 @@ class TulparController:
         else:
             self.log("microphone", "disabled", reason="TULPAR_VOSK_MODEL is not configured")
         self.draw_face("neutral")
-        self.set_camera_view("overview")
+        self.set_camera_view("side")
         self.say("TULPAR is ready.")
         self.log("startup", "ready")
+        self.showcase = Showcase(self)
+        if self.auto_demo:
+            self.showcase.start(record=True)
 
     def _dialogue_loop(self):
         """Keep local LLM latency off the Webots motor-control loop."""
@@ -186,7 +203,7 @@ class TulparController:
         try:
             with NamedTemporaryFile(suffix=".jpg", delete=False) as image_file:
                 image_path = Path(image_file.name)
-            if not self.camera.saveImage(str(image_path), 88):
+            if self.camera.saveImage(str(image_path), 88) != 0:
                 self.log("vision", "frame_capture_failed")
                 return None
             image = image_path.read_bytes()
@@ -253,15 +270,20 @@ class TulparController:
         print(format_status_event(row), flush=True)
 
     def set_camera_view(self, view=None):
-        """Cycle overview, overhead, and robot-follow camera presets."""
-        views = ("overview", "overhead", "robot")
+        """Cycle report-facing side, overview, overhead, and follow views."""
+        views = ("side", "overview", "overhead", "robot")
         if view is None:
             view = views[(views.index(self.camera_view) + 1) % len(views)]
         if view not in views:
             raise ValueError(f"unknown camera view: {view}")
         self.camera_view = view
-        if view == "overview":
-            position, target, up = (4.5, -6.2, 4.1), (0.0, 0.0, 0.55), (0.0, 0.0, 1.0)
+        if view == "side":
+            # Side-on to the X-axis route: robot, operator, floor markers, and
+            # the separate tabletop setup remain visible in one composition.
+            position, target, up = (2.8, -5.2, 3.0), (-0.35, -0.1, 0.55), (0.0, 0.0, 1.0)
+            self._apply_viewpoint(position, target, up)
+        elif view == "overview":
+            position, target, up = (2.9, -4.3, 4.1), (0.0, 0.0, 0.55), (0.0, 0.0, 1.0)
             self._apply_viewpoint(position, target, up)
         elif view == "overhead":
             position, target, up = (0.0, -0.1, 7.0), (0.0, -0.1, 0.0), (0.0, -1.0, 0.0)
@@ -281,7 +303,7 @@ class TulparController:
             return
         x, y, z = self.gps.getValues()
         yaw = self.imu.getRollPitchYaw()[2]
-        local_x, local_y = -1.15, -1.55
+        local_x, local_y = 1.05, -1.35
         offset_x = math.cos(yaw) * local_x - math.sin(yaw) * local_y
         offset_y = math.sin(yaw) * local_x + math.cos(yaw) * local_y
         position = (x + offset_x, y + offset_y, z + 1.05)
@@ -289,6 +311,7 @@ class TulparController:
         self._apply_viewpoint(position, target)
 
     def say(self, message, utterance_type="response"):
+        self.last_utterance = message
         self.speaker.speak(message, 1.0)
         self.log(
             "voice_output", "started", response_char_count=len(message),
@@ -331,11 +354,15 @@ class TulparController:
         if emotion in ("happy", "love", "wink"):
             points = mouth_curve_points(emotion)
             for start, end in zip(points, points[1:]):
-                canvas.drawLine(start[0], start[1], end[0], end[1])
+
+                for dy in range(-2, 3):
+                    canvas.drawLine(start[0], start[1]+dy, end[0], end[1]+dy)
         elif emotion == "sad":
             points = mouth_curve_points(emotion)
             for start, end in zip(points, points[1:]):
-                canvas.drawLine(start[0], start[1], end[0], end[1])
+
+                for dy in range(-2, 3):
+                    canvas.drawLine(start[0], start[1]+dy, end[0], end[1]+dy)
         elif emotion == "surprised":
             mouth_height = 48 + int(6 * math.sin(time_s * 2.4))
             canvas.drawOval(*display_oval_from_bounds(109, 181, 38, mouth_height))
@@ -351,6 +378,18 @@ class TulparController:
         now = self.robot.getTime()
         if now - self.last_face_frame_time >= 0.12:
             self.draw_face(self.emotion, now)
+
+    def capture_scene(self, name):
+        """Export the rendered 3D viewport for visual QA and scripted demos."""
+        if self.capture_dir:
+            path = self.capture_dir / f"{name}.png"
+            self.robot.exportImage(str(path), 95)
+            camera_path = self.capture_dir / f"{name}_robot_camera.png"
+            camera_ok = self.camera.saveImage(str(camera_path), 95)
+            self.log(
+                "scene_capture", "exported", file=str(path),
+                robot_camera_file=str(camera_path) if camera_ok == 0 else None,
+            )
 
     def tracks(self, left, right):
         if self.mode != "floor" or self.emergency_stop:
@@ -375,6 +414,8 @@ class TulparController:
         self.approach_motion_started = False
         self.stop_detector.stable_count = 0
         self.log("stop", "commanded", reason=reason)
+        self.draw_face("surprised")
+        self.log("face_display", "emotion_started", emotion="surprised")
         self.say("Stopped.")
 
     def update_stop_measurement(self):
@@ -429,7 +470,8 @@ class TulparController:
         )
         self.log(label, "accepted", target=target)
         self.set_emotion("thinking")
-        self.say("I am coming.")
+        response = "Coming to you." if label == "come_to_me" else "Moving to the marked target."
+        self.say(response)
 
     def refresh_recognition(self):
         """Snapshot camera recognitions at the configured one-second cadence."""
@@ -509,7 +551,9 @@ class TulparController:
         marker = self.marker_nodes[target_label].getPosition()
         shoulder = self.pointing_nodes["operator-shoulder"].getPosition()
         dx, dy = marker[0] - shoulder[0], marker[1] - shoulder[1]
-        length = math.hypot(dx, dy)
+        # The visible pole extends above its floor marker; aim at its centre.
+        dz = marker[2] + 0.28 - shoulder[2]
+        length = math.sqrt(dx * dx + dy * dy + dz * dz)
         if length <= 0.0:
             return
         extension = 0.55
@@ -517,7 +561,7 @@ class TulparController:
         fingertip.getField("translation").setSFVec3f([
             shoulder[0] + dx / length * extension,
             shoulder[1] + dy / length * extension,
-            shoulder[2] + (marker[2] + 0.28 - shoulder[2]) * extension / length,
+            shoulder[2] + dz / length * extension,
         ])
         self.pointing_pose_ready_time = self.robot.getTime() + 1.0
         self.log("simulated_pointing_pose", "set", target=target_label)
@@ -525,7 +569,7 @@ class TulparController:
     def update_approach(self):
         range_m = float("nan") if self.range_fault_injected else float(self.range_sensor.getValue())
         range_decision = self.range_safety.evaluate(
-            range_m, max_range_m=1.5, stop_distance_m=0.25
+            range_m, max_range_m=1.5, stop_distance_m=0.50
         )
         if range_decision.status == "retry":
             self.tracks(0.0, 0.0)
@@ -540,9 +584,17 @@ class TulparController:
             self.stop("range_sensor_failed")
             return
         if range_decision.status == "obstacle":
-            self.log("range_sensor", "stopped", reason="obstacle", distance_m=round(range_decision.distance_m, 3))
+            x, y, _ = self.gps.getValues()
+            centre_distance = math.hypot(self.target[0] - x, self.target[1] - y)
+            yaw = self.imu.getRollPitchYaw()[2]
+            target_yaw = math.atan2(self.target[1] - y, self.target[0] - x)
+            heading_error = abs(math.atan2(math.sin(target_yaw-yaw), math.cos(target_yaw-yaw)))
             self.range_retry_announced = False
-            self.stop("front_obstacle")
+            if centre_distance <= 1.0 and heading_error < 0.20:
+                self.complete_approach(range_decision.distance_m, "front_sensor_to_surface")
+            else:
+                self.log("range_sensor", "stopped", reason="unexpected_front_return", distance_m=round(range_decision.distance_m, 3))
+                self.stop("unexpected_front_return")
             return
         if self.range_retry_announced:
             self.log("range_sensor", "retry_recovered")
@@ -558,19 +610,7 @@ class TulparController:
             turn_speed=TURN_SPEED,
         )
         if command.arrived:
-            self.tracks(0.0, 0.0)
-            self.action = None
-            self.target = None
-            self.pending_movement_response_start = None
-            self.approach_motion_started = False
-            trial = self.trial_recorder.current
-            if trial and trial.scenario == "approach_operator":
-                self.trial_scenario_success = True
-            elif trial and trial.scenario == "approach_marked_target":
-                self.trial_scenario_success = self.trial_target_selection_correct is True
-            self.set_emotion("happy")
-            self.say("I have arrived.")
-            self.log("approach", "arrived", distance=round(command.distance, 3))
+            self.complete_approach(command.distance, "simulator_centre_distance")
             return
         self.tracks(command.left, command.right)
         if command.left or command.right:
@@ -581,6 +621,21 @@ class TulparController:
                 response_time_s=round(self.robot.getTime() - self.pending_movement_response_start, 3),
             )
             self.pending_movement_response_start = None
+
+    def complete_approach(self, distance, measurement):
+        self.tracks(0.0, 0.0)
+        self.action = None
+        self.target = None
+        self.pending_movement_response_start = None
+        self.approach_motion_started = False
+        trial = self.trial_recorder.current
+        if trial and trial.scenario == "approach_operator":
+            self.trial_scenario_success = True
+        elif trial and trial.scenario == "approach_marked_target":
+            self.trial_scenario_success = self.trial_target_selection_correct is True
+        self.set_emotion("happy")
+        self.say("I have arrived.")
+        self.log("approach", "arrived", distance=round(distance, 3), measurement=measurement)
 
     def update_wave(self):
         self.tracks(0.0, 0.0)
@@ -821,6 +876,10 @@ class TulparController:
             self.set_simulated_pointing_target("target-A")
         elif key == ord("4"):
             self.set_simulated_pointing_target("target-B")
+        elif key == ord("R"):
+            self.showcase.start(record=True)
+        elif key == ord("B"):
+            self.showcase.start()
         elif key == ord("C"):
             self.set_camera_view()
 
@@ -832,9 +891,12 @@ class TulparController:
                 self.refresh_recognition()
                 self.update_stop_measurement()
                 self.process_voice_io()
+                self.showcase.update()
+                self.showcase.overlay()
                 key = self.keyboard.getKey()
-                if key != -1:
+                if key != -1 and key != self.last_keyboard_key:
                     self.keyboard_command(key)
+                self.last_keyboard_key = key
                 if self.action == "approach":
                     self.update_approach()
                 elif self.action == "wave":

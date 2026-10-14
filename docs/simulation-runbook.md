@@ -5,7 +5,7 @@ This guide covers the planned 40-trial Webots evaluation. It records simulated o
 ## 1. Prepare the run
 
 1. Open `worlds/tulpar_demo.wbt` in Webots R2025a or a compatible later release, then start the simulation in real-time mode.
-2. Confirm that the robot, operator, both targets, and the test area are visible. Press `C` to cycle through the room overview, overhead, and robot-follow views.
+2. Confirm that the robot, operator, both targets, and the test area are visible in the default side-on view. Press `C` to cycle through the room overview, overhead, and robot-follow views.
 3. Confirm that the range sensor is not in fault mode and that the emergency stop is clear. If either is active, clear it before starting a trial. `F` toggles the simulated sensor fault; `E` toggles the simulated emergency stop.
 4. For voice-command trials, configure the local English Vosk model as described in [`voice-setup.md`](voice-setup.md), and confirm that the microphone is enabled in the Webots controller. Keyboard shortcuts can check the scene and action logic, but they do not count as voice-recognition trials.
 5. The controller saves observed outcomes to `logs/technical-trial-results.csv` and event timings to `logs/tulpar-events.jsonl`. These files are created when the controller writes the first result or event. Keep the original files with the run; do not edit results to make a trial pass.

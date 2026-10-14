@@ -2,5 +2,7 @@ __pycache__/
 *.py[cod]
 logs/*.jsonl
 logs/*.csv
+logs/
+outputs/
 .webots/
 worlds/.*.wbproj

@@ -45,6 +45,54 @@ class FakeRecorder:
 
 
 class ControllerTrialFailureTests(unittest.TestCase):
+    def test_approach_starts_with_a_spoken_response_and_face_state(self):
+        controller = TulparController.__new__(TulparController)
+        controller.mode = "floor"
+        controller.emergency_stop = False
+        controller.range_fault_injected = False
+        controller.range_retry_announced = False
+        controller.range_sensor = types.SimpleNamespace(getValue=lambda: 1.0)
+        controller.range_safety = types.SimpleNamespace(
+            evaluate=lambda *args, **kwargs: types.SimpleNamespace(status="clear")
+        )
+        controller.command_received_at = 1.0
+        controller.robot = types.SimpleNamespace(getTime=lambda: 1.1)
+        controller.events = []
+        controller.emotions = []
+        controller.spoken = []
+        controller.log = lambda *args, **kwargs: controller.events.append(args)
+        controller.set_emotion = controller.emotions.append
+        controller.say = lambda message, **kwargs: controller.spoken.append(message)
+
+        controller.begin_approach((1.0, 2.0), "come_to_me")
+
+        self.assertEqual(controller.action, "approach")
+        self.assertEqual(controller.emotions, ["thinking"])
+        self.assertEqual(controller.spoken, ["Coming to you."])
+
+    def test_stop_coordinates_face_voice_and_drive_stop(self):
+        controller = TulparController.__new__(TulparController)
+        controller.approach_motion_started = True
+        controller.command_received_at = 2.0
+        controller.robot = types.SimpleNamespace(getTime=lambda: 2.1)
+        controller.stop_detector = types.SimpleNamespace(stable_count=2)
+        controller.track_commands = []
+        controller.events = []
+        controller.faces = []
+        controller.spoken = []
+        controller.tracks = lambda left, right: controller.track_commands.append((left, right))
+        controller.log = lambda *args, **kwargs: controller.events.append(args)
+        controller.draw_face = controller.faces.append
+        controller.say = controller.spoken.append
+
+        controller.stop()
+
+        self.assertEqual(controller.track_commands, [(0.0, 0.0)])
+        self.assertEqual(controller.faces, ["surprised"])
+        self.assertEqual(controller.spoken, ["Stopped."])
+        self.assertIn(("stop", "commanded"), controller.events)
+        self.assertIn(("face_display", "emotion_started"), controller.events)
+
     def test_fail_cancels_motion_and_wave_before_recording_result(self):
         controller = TulparController.__new__(TulparController)
         controller.trial_recorder = FakeRecorder()
