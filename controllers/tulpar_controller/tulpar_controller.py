@@ -24,7 +24,7 @@ if str(PROJECT_ROOT) not in sys.path:
 from core.command_policy import allow_action, parse_spoken_command
 from core.diagnostics import format_status_event
 from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
-from core.face_animation import eye_pose
+from core.face_animation import display_oval_from_bounds, eye_pose, mouth_curve_points
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
 from core.pointing import (
@@ -312,24 +312,33 @@ class TulparController:
             if openness < 0.14:
                 canvas.drawLine(x, 112, x + 54, 112)
             else:
-                canvas.fillOval(x, eye_y, 54, eye_height)
+                canvas.fillOval(*display_oval_from_bounds(x, eye_y, 54, eye_height))
                 pupil_x = x + 21 + int(8 * pose.pupil_x)
                 pupil_y = 112 + int(14 * pose.pupil_y)
                 pupil_size = max(7, min(15, int(14 * openness)))
                 canvas.setColor(0x06202C)
-                canvas.fillOval(pupil_x, pupil_y - pupil_size // 2, pupil_size, pupil_size)
+                canvas.fillOval(*display_oval_from_bounds(
+                    pupil_x - pupil_size // 2,
+                    pupil_y - pupil_size // 2,
+                    pupil_size,
+                    pupil_size,
+                ))
         canvas.setColor(eye_color)
         if emotion == "angry":
             canvas.drawLine(46, 76, 108, 96)
             canvas.drawLine(210, 76, 148, 96)
         canvas.setColor(mouth_color)
         if emotion in ("happy", "love", "wink"):
-            canvas.drawArc(78, 175, 100, 58, 10, 160)
+            points = mouth_curve_points(emotion)
+            for start, end in zip(points, points[1:]):
+                canvas.drawLine(start[0], start[1], end[0], end[1])
         elif emotion == "sad":
-            canvas.drawArc(78, 204, 100, 58, 190, 160)
+            points = mouth_curve_points(emotion)
+            for start, end in zip(points, points[1:]):
+                canvas.drawLine(start[0], start[1], end[0], end[1])
         elif emotion == "surprised":
             mouth_height = 48 + int(6 * math.sin(time_s * 2.4))
-            canvas.drawOval(109, 181, 38, mouth_height)
+            canvas.drawOval(*display_oval_from_bounds(109, 181, 38, mouth_height))
         elif emotion == "thinking":
             canvas.fillRectangle(96, 206, 64, 7)
         else:
