@@ -19,20 +19,13 @@ Robot {
       appearance PBRAppearance { baseColor 0.08 0.16 0.22 roughness 0.55 metalness 0.15 }
       geometry Box { size 0.36 0.30 0.10 }
     }
-    Pose {
-      translation 0 0.18 0
-      children [
-        DEF TRACK_LEFT Shape {
-          appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 }
-          geometry Box { size 0.39 0.065 0.12 }
-        }
-      ]
-    }
-    Pose {
-      translation 0 -0.18 0
-      children [ USE TRACK_LEFT ]
-    }
-    # Track details are visual; the motor devices provide the controlled drive path.
+    # Belt runs sit above and below the exposed driven wheels so wheel rotation
+    # remains visible from the room camera.
+    Pose { translation 0 0.17 0.050 children [ Shape { appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 } geometry Box { size 0.27 0.055 0.025 } } ] }
+    Pose { translation 0 0.17 -0.050 children [ Shape { appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 } geometry Box { size 0.27 0.055 0.025 } } ] }
+    Pose { translation 0 -0.17 0.050 children [ Shape { appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 } geometry Box { size 0.27 0.055 0.025 } } ] }
+    Pose { translation 0 -0.17 -0.050 children [ Shape { appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 } geometry Box { size 0.27 0.055 0.025 } } ] }
+    # Track details are visual; four driven wheels provide the controlled drive path.
     Shape {
       appearance PBRAppearance { baseColor 0.63 0.72 0.78 roughness 0.48 metalness 0.12 }
       geometry Box { size 0.25 0.20 0.29 }
@@ -93,9 +86,14 @@ Robot {
         translation 0 0.14 0.31
         children [
           Pose { translation 0.04 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.56 0.68 0.75 roughness 0.52 metalness 0.08 } geometry Box { size 0.17 0.055 0.055 } } ] }
-          Pose { translation 0.145 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.10 0.028 } } ] }
+          # The claw is fixed: a small palm with two closed fingers, not a gripper.
+          Pose { translation 0.145 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.055 0.075 0.030 } } ] }
+          Pose { translation 0.190 0.026 0 rotation 0 0 1 -0.45 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.018 0.025 } } ] }
+          Pose { translation 0.190 -0.026 0 rotation 0 0 1 0.45 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.018 0.025 } } ] }
         ]
-        boundingObject Box { size 0.23 0.11 0.07 }
+        boundingObject Group {
+          children [ Pose { translation 0.07 0 0 children [ Box { size 0.32 0.11 0.07 } ] } ]
+        }
         physics Physics { density -1 mass 0.16 }
       }
     }
@@ -106,9 +104,14 @@ Robot {
         translation 0 -0.14 0.31
         children [
           Pose { translation 0.04 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.56 0.68 0.75 roughness 0.52 metalness 0.08 } geometry Box { size 0.17 0.055 0.055 } } ] }
-          Pose { translation 0.145 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.10 0.028 } } ] }
+          # The claw is fixed: a small palm with two closed fingers, not a gripper.
+          Pose { translation 0.145 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.055 0.075 0.030 } } ] }
+          Pose { translation 0.190 0.026 0 rotation 0 0 1 -0.45 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.018 0.025 } } ] }
+          Pose { translation 0.190 -0.026 0 rotation 0 0 1 0.45 children [ Shape { appearance PBRAppearance { baseColor 0.15 0.22 0.28 roughness 0.62 } geometry Box { size 0.075 0.018 0.025 } } ] }
         ]
-        boundingObject Box { size 0.23 0.11 0.07 }
+        boundingObject Group {
+          children [ Pose { translation 0.07 0 0 children [ Box { size 0.32 0.11 0.07 } ] } ]
+        }
         physics Physics { density -1 mass 0.16 }
       }
     }
