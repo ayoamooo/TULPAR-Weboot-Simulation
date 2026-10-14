@@ -58,28 +58,44 @@ def summarise_trials(results_path: Path, events_path: Path) -> dict:
     target_selection_outcomes: list[bool] = []
     for row in results:
         trial_id = row.get("trial_id", "")
-        events = events_by_trial.get(trial_id, [])
+        all_events = events_by_trial.get(trial_id, [])
         scenario = row.get("scenario")
+        target_selection_outcomes.extend(
+            event.get("outcome") == "correct"
+            for event in all_events
+            if scenario == "approach_marked_target"
+            and event.get("command") == "target_selection"
+            and event.get("outcome") in {"correct", "incorrect", "rejected"}
+        )
+
+        accepted_command = {
+            "approach_operator": "come_to_me",
+            "approach_marked_target": "go_to_marker",
+            "greeting": "greeting",
+        }.get(scenario)
+        start_index = next((
+            index for index, event in enumerate(all_events)
+            if event.get("command") == accepted_command and event.get("outcome") == "accepted"
+        ), -1) if accepted_command else -1
+        events = all_events[start_index + 1:] if start_index >= 0 else all_events
         channels: dict[str, float] = {}
         for event in events:
             command = event.get("command")
             outcome = event.get("outcome")
             if command == "movement" and outcome == "started":
                 value = event.get("response_time_s")
-                if isinstance(value, (int, float)):
+                if scenario in {"approach_operator", "approach_marked_target"} and isinstance(value, (int, float)):
                     movement_times.append(float(value))
                 channels.setdefault("movement", float(event["simulated_time_s"]))
             elif command == "stop" and outcome == "confirmed":
                 value = event.get("stopping_time_s")
-                if isinstance(value, (int, float)):
+                if scenario == "stop" and event.get("reason") == "command" and isinstance(value, (int, float)):
                     stopping_times.append(float(value))
             elif command == "greeting" and outcome == "gesture_started":
                 value = event.get("response_time_s")
-                if isinstance(value, (int, float)):
+                if scenario == "greeting" and isinstance(value, (int, float)):
                     greeting_times.append(float(value))
                 channels.setdefault("gesture", float(event["simulated_time_s"]))
-            elif command == "target_selection" and outcome in {"correct", "incorrect", "rejected"}:
-                target_selection_outcomes.append(outcome == "correct")
             elif command == "face_display" and outcome == "emotion_started":
                 channels.setdefault("face", float(event["simulated_time_s"]))
             elif command == "voice_output" and outcome == "started":

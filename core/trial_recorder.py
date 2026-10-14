@@ -30,21 +30,19 @@ class TrialRecorder:
         with self.results_path.open(encoding="utf-8", newline="") as stream:
             return {row["trial_id"] for row in csv.DictReader(stream) if row.get("trial_id")}
 
-    def start_next(self, time_s: float) -> Trial | None:
-        if self.current is not None:
-            raise RuntimeError("finish the active trial before starting another")
-        self.current = next(
+    def next_trial(self) -> Trial | None:
+        return next(
             (trial for trial in self.trials if trial.trial_id not in self.completed_ids),
             None,
         )
+
+    def start_next(self, time_s: float) -> Trial | None:
+        if self.current is not None:
+            raise RuntimeError("finish the active trial before starting another")
+        self.current = self.next_trial()
         if self.current is not None:
             self.started_at = float(time_s)
         return self.current
-
-    def cancel(self) -> None:
-        """Discard an accidental start without creating a result row."""
-        self.current = None
-        self.started_at = None
 
     def finish(self, outcome: str, time_s: float) -> dict[str, str]:
         if outcome not in {"pass", "fail"}:

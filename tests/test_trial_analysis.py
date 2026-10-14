@@ -26,6 +26,7 @@ class TrialAnalysisTests(unittest.TestCase):
             events = root / "events.jsonl"
             records = [
                 {"trial_id": "T01", "command": "voice_output", "outcome": "started", "utterance_type": "trial_prompt", "simulated_time_s": 0.1},
+                {"trial_id": "T01", "command": "come_to_me", "outcome": "accepted", "simulated_time_s": 0.9},
                 {"trial_id": "T01", "command": "voice_output", "outcome": "started", "utterance_type": "response", "simulated_time_s": 1.0},
                 {"trial_id": "T01", "command": "face_display", "outcome": "emotion_started", "simulated_time_s": 1.0},
                 {"trial_id": "T01", "command": "movement", "outcome": "started", "simulated_time_s": 1.1, "response_time_s": 0.1},

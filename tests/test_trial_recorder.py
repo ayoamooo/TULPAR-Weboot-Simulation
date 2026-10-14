@@ -11,6 +11,7 @@ class TrialRecorderTests(unittest.TestCase):
         with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as directory:
             path = Path(directory) / "results.csv"
             recorder = TrialRecorder(path)
+            self.assertEqual(recorder.next_trial().trial_id, "T01")
             first = recorder.start_next(1.25)
             self.assertEqual(first.trial_id, "T01")
             with self.assertRaises(RuntimeError):
@@ -19,6 +20,7 @@ class TrialRecorderTests(unittest.TestCase):
             self.assertEqual(row["duration_s"], "2.750")
 
             resumed = TrialRecorder(path)
+            self.assertEqual(resumed.next_trial().trial_id, "T02")
             self.assertEqual(resumed.start_next(10.0).trial_id, "T02")
             with path.open(encoding="utf-8", newline="") as stream:
                 rows = list(csv.DictReader(stream))
