@@ -20,6 +20,8 @@ class TrialProtocolTests(unittest.TestCase):
             "stop": 10,
             "greeting": 10,
         })
+        marker_trials = [trial for trial in trials if trial.scenario == "approach_marked_target"]
+        self.assertEqual(Counter(trial.target for trial in marker_trials), {"target-A": 5, "target-B": 5})
         greeting = [trial for trial in trials if trial.scenario == "greeting"]
         self.assertEqual(Counter(trial.placement for trial in greeting), {"floor": 5, "tabletop": 5})
 

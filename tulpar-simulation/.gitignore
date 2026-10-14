@@ -1,5 +1,6 @@
 __pycache__/
 *.py[cod]
 logs/*.jsonl
+logs/*.csv
 .webots/
 worlds/.*.wbproj

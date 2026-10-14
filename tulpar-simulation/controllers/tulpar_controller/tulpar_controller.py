@@ -29,6 +29,7 @@ from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
+from core.trial_recorder import TrialRecorder
 
 
 TIME_STEP = 32
@@ -36,6 +37,8 @@ APPROACH_DISTANCE = 0.50
 MAX_SPEED = 3.0
 TURN_SPEED = 1.7
 ARRIVAL_TOLERANCE = 0.08
+FLOOR_START = [-1.7, -1.1, 0.07]
+TABLETOP_START = [-2.45, -1.65, 0.575]
 
 
 class TulparController:
@@ -74,6 +77,7 @@ class TulparController:
             "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
         }
         self.latest_recognition = {}
+        self.last_selected_marker = None
         self.pointing_pose_ready_time = 0.0
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
             device.enable(TIME_STEP)
@@ -86,9 +90,18 @@ class TulparController:
         self.mode = "floor"
         self.self_node = self.robot.getSelf()
         self.translation_field = self.self_node.getField("translation")
+        self.rotation_field = self.self_node.getField("rotation")
         self.emergency_stop = False
         self.action = None
         self.target = None
+        self.command_received_at = None
+        self.pending_movement_response_start = None
+        self.pending_greeting_response_start = None
+        self.trial_scenario_success = False
+        self.trial_target_selection_correct = None
+        self.approach_motion_started = False
+        self.last_stop_reason = None
+        self.last_stop_had_motion = False
         self.stop_detector = WheelStopDetector()
         self.range_safety = RangeSafetyMonitor()
         self.range_fault_injected = False
@@ -98,6 +111,9 @@ class TulparController:
         self.last_face_frame_time = -1.0
         self.wave_phase = 0.0
         self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
+        self.trial_recorder = TrialRecorder(
+            Path(__file__).resolve().parents[2] / "logs" / "technical-trial-results.csv"
+        )
         self.event_file.parent.mkdir(exist_ok=True)
         self.transcripts = Queue()
         self.voice_errors = Queue()
@@ -203,19 +219,26 @@ class TulparController:
                     self.log("vision", "model_error", detail=vision_error)
 
     def log(self, command, outcome, **extra):
+        trial = getattr(self, "trial_recorder", None)
+        active_trial_id = trial.current.trial_id if trial and trial.current else None
         row = {
             "time_utc": datetime.now(timezone.utc).isoformat(),
             "simulated_time_s": round(self.robot.getTime(), 3),
             "command": command,
             "mode": self.mode,
             "outcome": outcome,
+            **({"trial_id": active_trial_id} if active_trial_id else {}),
             **extra,
         }
         with self.event_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
 
-    def say(self, message):
+    def say(self, message, utterance_type="response"):
         self.speaker.speak(message, 1.0)
+        self.log(
+            "voice_output", "started", response_char_count=len(message),
+            utterance_type=utterance_type,
+        )
 
     def draw_face(self, emotion, time_s=None):
         self.emotion = emotion
@@ -274,10 +297,18 @@ class TulparController:
             motor.setVelocity(right)
 
     def stop(self, reason="command"):
+        self.last_stop_had_motion = self.approach_motion_started
+        self.last_stop_reason = reason
         self.tracks(0.0, 0.0)
         self.action = None
         self.target = None
-        self.pending_stop_time = self.robot.getTime()
+        self.pending_stop_time = (
+            self.command_received_at
+            if self.command_received_at is not None else self.robot.getTime()
+        )
+        self.pending_movement_response_start = None
+        self.pending_greeting_response_start = None
+        self.approach_motion_started = False
         self.stop_detector.stable_count = 0
         self.log("stop", "commanded", reason=reason)
         self.say("Stopped.")
@@ -293,8 +324,15 @@ class TulparController:
                 "confirmed",
                 stopping_time_s=round(now - self.pending_stop_time, 3),
                 max_wheel_speed_rad_s=round(max(abs(speed) for speed in sample.wheel_speeds), 4),
+                reason=self.last_stop_reason,
             )
             self.pending_stop_time = None
+            trial = self.trial_recorder.current
+            if (
+                trial and trial.scenario == "stop"
+                and self.last_stop_reason == "command" and self.last_stop_had_motion
+            ):
+                self.trial_scenario_success = True
 
     def set_emotion(self, emotion):
         self.draw_face(emotion)
@@ -306,7 +344,8 @@ class TulparController:
         left, right = poses[emotion]
         self.left_arm.setPosition(left)
         self.right_arm.setPosition(right)
-        self.log("emotion", "displayed", emotion=emotion)
+        self.log("face_display", "emotion_started", emotion=emotion)
+        self.log("arm_pose", "emotion_started", emotion=emotion)
 
     def begin_approach(self, target, label):
         if self.mode != "floor":
@@ -319,9 +358,14 @@ class TulparController:
             return
         self.target = target
         self.action = "approach"
+        self.approach_motion_started = False
+        self.pending_movement_response_start = (
+            self.command_received_at
+            if self.command_received_at is not None else self.robot.getTime()
+        )
+        self.log(label, "accepted", target=target)
         self.set_emotion("thinking")
         self.say("I am coming.")
-        self.log(label, "accepted", target=target)
 
     def refresh_recognition(self):
         """Snapshot recognized model labels and image centres from the camera."""
@@ -333,6 +377,7 @@ class TulparController:
                 self.latest_recognition[label] = (float(x), float(y))
 
     def pointed_marker_target(self):
+        self.last_selected_marker = None
         if self.robot.getTime() < self.pointing_pose_ready_time:
             self.log("go_to_marker", "rejected_vision", reason="waiting_for_next_camera_frame")
             self.say("Please hold your pointing pose while I check the camera.")
@@ -347,8 +392,17 @@ class TulparController:
         result = select_pointed_target(shoulder, fingertip, markers)
         if result.target is None:
             self.log("go_to_marker", "rejected_vision", reason=result.reason)
+            trial = self.trial_recorder.current
+            if trial and trial.scenario == "approach_marked_target":
+                if self.trial_target_selection_correct is None:
+                    self.trial_target_selection_correct = False
+                self.log(
+                    "target_selection", "rejected", expected=trial.target,
+                    reason=result.reason,
+                )
             self.say("I cannot identify the pointed marker. Please point again.")
             return None
+        self.last_selected_marker = result.target
         marker_position = self.marker_nodes[result.target].getPosition()
         target_xy = (float(marker_position[0]), float(marker_position[1]))
         self.log(
@@ -414,11 +468,26 @@ class TulparController:
             self.tracks(0.0, 0.0)
             self.action = None
             self.target = None
+            self.pending_movement_response_start = None
+            self.approach_motion_started = False
+            trial = self.trial_recorder.current
+            if trial and trial.scenario == "approach_operator":
+                self.trial_scenario_success = True
+            elif trial and trial.scenario == "approach_marked_target":
+                self.trial_scenario_success = self.trial_target_selection_correct is True
             self.set_emotion("happy")
             self.say("I have arrived.")
             self.log("approach", "arrived", distance=round(command.distance, 3))
             return
         self.tracks(command.left, command.right)
+        if command.left or command.right:
+            self.approach_motion_started = True
+        if self.pending_movement_response_start is not None and (command.left or command.right):
+            self.log(
+                "movement", "started",
+                response_time_s=round(self.robot.getTime() - self.pending_movement_response_start, 3),
+            )
+            self.pending_movement_response_start = None
 
     def update_wave(self):
         self.tracks(0.0, 0.0)
@@ -426,11 +495,19 @@ class TulparController:
         swing = 0.42 * math.sin(self.wave_phase * 7.0)
         self.left_arm.setPosition(-0.28 + swing)
         self.right_arm.setPosition(0.20)
+        if self.pending_greeting_response_start is not None:
+            self.log(
+                "greeting", "gesture_started",
+                response_time_s=round(self.robot.getTime() - self.pending_greeting_response_start, 3),
+            )
+            self.pending_greeting_response_start = None
         if self.wave_phase > 2.2:
             self.wave_phase = 0.0
             self.action = None
+            trial = self.trial_recorder.current
+            if trial and trial.scenario == "greeting":
+                self.trial_scenario_success = True
             self.set_emotion("happy")
-            self.say("Hello.")
             self.log("greeting", "completed")
 
     def command(self, value):
@@ -439,6 +516,15 @@ class TulparController:
         elif value == "marker":
             target = self.pointed_marker_target()
             if target is not None:
+                trial = self.trial_recorder.current
+                if trial and trial.scenario == "approach_marked_target":
+                    correct = self.last_selected_marker == trial.target
+                    if self.trial_target_selection_correct is None:
+                        self.trial_target_selection_correct = correct
+                    self.log(
+                        "target_selection", "correct" if correct else "incorrect",
+                        expected=trial.target, selected=self.last_selected_marker,
+                    )
                 self.begin_approach(target, "go_to_marker")
         elif value == "stop":
             self.stop()
@@ -446,16 +532,26 @@ class TulparController:
             self.tracks(0.0, 0.0)
             self.action = "wave"
             self.wave_phase = 0.0
-            self.set_emotion("happy")
+            self.pending_greeting_response_start = (
+                self.command_received_at
+                if self.command_received_at is not None else self.robot.getTime()
+            )
             self.log("greeting", "accepted")
+            self.set_emotion("happy")
+            self.say("Hello.")
         elif value == "mode":
+            if self.trial_recorder.current is not None:
+                self.say("Finish the active trial before changing mode.")
+                self.log("mode", "change_rejected_active_trial")
+                return
             self.stop("mode_change")
             if self.mode == "floor":
-                self.translation_field.setSFVec3f([-2.45, -1.65, 0.575])
+                self.translation_field.setSFVec3f(TABLETOP_START)
                 self.mode = "tabletop"
             else:
-                self.translation_field.setSFVec3f([-1.7, -1.1, 0.07])
+                self.translation_field.setSFVec3f(FLOOR_START)
                 self.mode = "floor"
+            self.rotation_field.setSFRotation([0.0, 0.0, 1.0, 0.0])
             self.self_node.resetPhysics()
             self.say(f"{self.mode} mode selected.")
             self.log("mode", "changed")
@@ -470,6 +566,87 @@ class TulparController:
             self.log("range_sensor_fault_injection", "enabled" if self.range_fault_injected else "disabled")
         else:
             self.set_emotion(value)
+
+    def start_trial(self):
+        if self.trial_recorder.current is not None:
+            self.say("A trial is already active.")
+            self.log("trial", "start_rejected_active_trial")
+            return
+        trial = self.trial_recorder.next_trial()
+        if trial is None:
+            self.say("All planned trials already have recorded outcomes.")
+            self.log("trial", "plan_complete")
+            return
+        if trial.placement != self.mode:
+            self.say(f"Trial {trial.trial_id} requires {trial.placement} mode.")
+            self.log(
+                "trial", "start_rejected_wrong_mode", trial_id=trial.trial_id,
+                required_mode=trial.placement,
+            )
+            return
+        if self.emergency_stop or self.range_fault_injected:
+            self.say("Clear the emergency stop and sensor fault before a trial.")
+            self.log("trial", "start_rejected_safety_state", trial_id=trial.trial_id)
+            return
+
+        self.tracks(0.0, 0.0)
+        self.action = None
+        self.target = None
+        self.approach_motion_started = False
+        self.translation_field.setSFVec3f(FLOOR_START if self.mode == "floor" else TABLETOP_START)
+        self.rotation_field.setSFRotation([0.0, 0.0, 1.0, 0.0])
+        self.self_node.resetPhysics()
+        self.left_arm.setPosition(0.0)
+        self.right_arm.setPosition(0.0)
+        self.draw_face("neutral")
+        self.stop_detector.stable_count = 0
+        self.range_safety = RangeSafetyMonitor()
+        self.pending_stop_time = None
+        self.pending_movement_response_start = None
+        self.pending_greeting_response_start = None
+        self.trial_scenario_success = False
+        self.trial_target_selection_correct = None
+        trial = self.trial_recorder.start_next(self.robot.getTime())
+
+        instruction = f"Run: {trial.command}."
+        if trial.scenario == "stop":
+            self.action = "approach"
+            self.target = (1.45, -1.10)
+            self.approach_motion_started = False
+            self.set_emotion("thinking")
+            instruction = "I am moving toward the operator. Say stop while the tracks are moving."
+        if trial.scenario == "approach_marked_target":
+            control_key = "3" if trial.target == "target-A" else "4"
+            instruction = (
+                f"Set the virtual pointing pose to {trial.target} with key {control_key}, "
+                f"then say: {trial.command}."
+            )
+        self.say(f"Trial {trial.trial_id} started. {instruction}", utterance_type="trial_prompt")
+        self.log(
+            "trial", "started", trial_id=trial.trial_id, scenario=trial.scenario,
+            placement=trial.placement,
+        )
+
+    def finish_trial(self, outcome):
+        trial = self.trial_recorder.current
+        if outcome == "pass" and trial and not self.trial_scenario_success:
+            self.say("The required behaviour has not completed yet; record fail or continue the trial.")
+            self.log("trial", "pass_rejected_incomplete", trial_id=trial.trial_id)
+            return
+        try:
+            row = self.trial_recorder.finish(outcome, self.robot.getTime())
+        except RuntimeError:
+            self.say("Start a trial before recording its result.")
+            self.log("trial", "result_rejected_no_active_trial", requested_outcome=outcome)
+            return
+        self.say(
+            f"Trial {row['trial_id']} recorded as {outcome}.",
+            utterance_type="trial_result",
+        )
+        self.log(
+            "trial", "result_recorded", trial_id=row["trial_id"], outcome=outcome,
+            duration_s=float(row["duration_s"]),
+        )
 
     def dispatch_spoken_text(self, text):
         """Route ASR text through the fixed action policy before any actuation.
@@ -491,7 +668,11 @@ class TulparController:
         }
         handler = handlers.get(decision.action)
         if handler:
-            handler()
+            self.command_received_at = self.robot.getTime()
+            try:
+                handler()
+            finally:
+                self.command_received_at = None
             return
         self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
@@ -511,7 +692,17 @@ class TulparController:
         }
         command = mapping.get(key)
         if command:
-            self.command(command)
+            self.command_received_at = self.robot.getTime()
+            try:
+                self.command(command)
+            finally:
+                self.command_received_at = None
+        elif key == ord("5"):
+            self.start_trial()
+        elif key == ord("6"):
+            self.finish_trial("pass")
+        elif key == ord("7"):
+            self.finish_trial("fail")
         elif key == ord("3"):
             self.set_simulated_pointing_target("target-A")
         elif key == ord("4"):
