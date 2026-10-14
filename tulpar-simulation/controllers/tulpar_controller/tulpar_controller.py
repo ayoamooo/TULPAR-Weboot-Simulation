@@ -10,13 +10,16 @@ import json
 import math
 import sys
 
-from controller import Robot, Keyboard
+from controller import Supervisor, Keyboard
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.command_policy import allow_action, parse_spoken_command
+from core.navigation import approach_command
+from core.pointing import ImagePoint, select_pointed_target
+from core.stop_measurement import WheelStopDetector
 
 
 TIME_STEP = 32
@@ -28,7 +31,7 @@ ARRIVAL_TOLERANCE = 0.08
 
 class TulparController:
     def __init__(self):
-        self.robot = Robot()
+        self.robot = Supervisor()
         self.keyboard = Keyboard()
         self.keyboard.enable(TIME_STEP)
         self.left_tracks = [
@@ -39,6 +42,12 @@ class TulparController:
             self.robot.getDevice("right front track motor"),
             self.robot.getDevice("right rear track motor"),
         ]
+        self.track_sensors = [
+            self.robot.getDevice("left front track sensor"),
+            self.robot.getDevice("left rear track sensor"),
+            self.robot.getDevice("right front track sensor"),
+            self.robot.getDevice("right rear track sensor"),
+        ]
         self.left_arm = self.robot.getDevice("left shoulder")
         self.right_arm = self.robot.getDevice("right shoulder")
         self.gps = self.robot.getDevice("gps")
@@ -47,15 +56,32 @@ class TulparController:
         self.speaker = self.robot.getDevice("speaker")
         self.face = self.robot.getDevice("face display")
         self.camera = self.robot.getDevice("robot camera")
+        self.marker_nodes = {
+            "target-A": self.robot.getFromDef("MARKER_A"),
+            "target-B": self.robot.getFromDef("MARKER_B"),
+        }
+        self.pointing_nodes = {
+            "operator-shoulder": self.robot.getFromDef("OPERATOR_SHOULDER"),
+            "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
+        }
+        self.latest_recognition = {}
+        self.pointing_pose_ready_time = 0.0
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
             device.enable(TIME_STEP)
+        self.camera.recognitionEnable(1000)
+        for sensor in self.track_sensors:
+            sensor.enable(TIME_STEP)
         for motor in (*self.left_tracks, *self.right_tracks):
             motor.setPosition(float("inf"))
             motor.setVelocity(0.0)
         self.mode = "floor"
+        self.self_node = self.robot.getSelf()
+        self.translation_field = self.self_node.getField("translation")
         self.emergency_stop = False
         self.action = None
         self.target = None
+        self.stop_detector = WheelStopDetector()
+        self.pending_stop_time = None
         self.emotion = "neutral"
         self.wave_phase = 0.0
         self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
@@ -127,8 +153,24 @@ class TulparController:
         self.tracks(0.0, 0.0)
         self.action = None
         self.target = None
-        self.log("stop", "tracks_zero", reason=reason)
+        self.pending_stop_time = self.robot.getTime()
+        self.stop_detector.stable_count = 0
+        self.log("stop", "commanded", reason=reason)
         self.say("Stopped.")
+
+    def update_stop_measurement(self):
+        now = self.robot.getTime()
+        sample = self.stop_detector.update(
+            tuple(sensor.getValue() for sensor in self.track_sensors), now
+        )
+        if self.pending_stop_time is not None and sample.stopped:
+            self.log(
+                "stop",
+                "confirmed",
+                stopping_time_s=round(now - self.pending_stop_time, 3),
+                max_wheel_speed_rad_s=round(max(abs(speed) for speed in sample.wheel_speeds), 4),
+            )
+            self.pending_stop_time = None
 
     def set_emotion(self, emotion):
         self.draw_face(emotion)
@@ -157,28 +199,77 @@ class TulparController:
         self.say("I am coming.")
         self.log(label, "accepted", target=target)
 
+    def refresh_recognition(self):
+        """Snapshot recognized model labels and image centres from the camera."""
+        self.latest_recognition = {}
+        for item in self.camera.getRecognitionObjects():
+            label = item.getModel()
+            if label:
+                x, y = item.getPositionOnImage()
+                self.latest_recognition[label] = (float(x), float(y))
+
+    def pointed_marker_target(self):
+        if self.robot.getTime() < self.pointing_pose_ready_time:
+            self.log("go_to_marker", "rejected_vision", reason="waiting_for_next_camera_frame")
+            self.say("Please hold your pointing pose while I check the camera.")
+            return None
+        shoulder = self.latest_recognition.get("operator-shoulder")
+        fingertip = self.latest_recognition.get("operator-fingertip")
+        markers = [
+            ImagePoint(label, *self.latest_recognition[label])
+            for label in self.marker_nodes
+            if label in self.latest_recognition
+        ]
+        result = select_pointed_target(shoulder, fingertip, markers)
+        if result.target is None:
+            self.log("go_to_marker", "rejected_vision", reason=result.reason)
+            self.say("I cannot identify the pointed marker. Please point again.")
+            return None
+        marker_position = self.marker_nodes[result.target].getPosition()
+        target_xy = (float(marker_position[0]), float(marker_position[1]))
+        self.log(
+            "go_to_marker", "vision_target_selected", target=result.target,
+            pointing_error_deg=round(result.angular_error_deg or 0.0, 2),
+        )
+        return target_xy
+
+    def set_simulated_pointing_target(self, target_label):
+        """Reposition the virtual fingertip to create a repeatable pointing pose."""
+        marker = self.marker_nodes[target_label].getPosition()
+        shoulder = self.pointing_nodes["operator-shoulder"].getPosition()
+        dx, dy = marker[0] - shoulder[0], marker[1] - shoulder[1]
+        length = math.hypot(dx, dy)
+        if length <= 0.0:
+            return
+        extension = 0.55
+        fingertip = self.pointing_nodes["operator-fingertip"]
+        fingertip.getField("translation").setSFVec3f([
+            shoulder[0] + dx / length * extension,
+            shoulder[1] + dy / length * extension,
+            shoulder[2] + (marker[2] + 0.28 - shoulder[2]) * extension / length,
+        ])
+        self.pointing_pose_ready_time = self.robot.getTime() + 1.0
+        self.log("simulated_pointing_pose", "set", target=target_label)
+
     def update_approach(self):
-        x, _, z = self.gps.getValues()
-        target_x, target_z = self.target
-        dx, dz = target_x - x, target_z - z
-        distance = math.hypot(dx, dz)
-        if distance <= APPROACH_DISTANCE + ARRIVAL_TOLERANCE:
+        x, y, _ = self.gps.getValues()
+        yaw = self.imu.getRollPitchYaw()[2]
+        command = approach_command(
+            (x, y), yaw, self.target,
+            stop_distance=APPROACH_DISTANCE,
+            arrival_tolerance=ARRIVAL_TOLERANCE,
+            max_speed=MAX_SPEED,
+            turn_speed=TURN_SPEED,
+        )
+        if command.arrived:
             self.tracks(0.0, 0.0)
             self.action = None
             self.target = None
             self.set_emotion("happy")
             self.say("I have arrived.")
-            self.log("approach", "arrived", distance=round(distance, 3))
+            self.log("approach", "arrived", distance=round(command.distance, 3))
             return
-        yaw = self.imu.getRollPitchYaw()[2]
-        desired_yaw = math.atan2(dz, dx)
-        error = math.atan2(math.sin(desired_yaw - yaw), math.cos(desired_yaw - yaw))
-        if abs(error) > 0.18:
-            direction = 1.0 if error > 0 else -1.0
-            self.tracks(-direction * TURN_SPEED, direction * TURN_SPEED)
-        else:
-            speed = min(MAX_SPEED, 0.7 + distance * 0.55)
-            self.tracks(speed, speed)
+        self.tracks(command.left, command.right)
 
     def update_wave(self):
         self.tracks(0.0, 0.0)
@@ -197,7 +288,9 @@ class TulparController:
         if value == "operator":
             self.begin_approach((1.45, -1.10), "come_to_me")
         elif value == "marker":
-            self.begin_approach((1.35, 1.15), "go_to_marker")
+            target = self.pointed_marker_target()
+            if target is not None:
+                self.begin_approach(target, "go_to_marker")
         elif value == "stop":
             self.stop()
         elif value == "greet":
@@ -208,7 +301,13 @@ class TulparController:
             self.log("greeting", "accepted")
         elif value == "mode":
             self.stop("mode_change")
-            self.mode = "tabletop" if self.mode == "floor" else "floor"
+            if self.mode == "floor":
+                self.translation_field.setSFVec3f([-2.45, -1.65, 0.575])
+                self.mode = "tabletop"
+            else:
+                self.translation_field.setSFVec3f([-1.7, -1.1, 0.07])
+                self.mode = "floor"
+            self.self_node.resetPhysics()
             self.say(f"{self.mode} mode selected.")
             self.log("mode", "changed")
         elif value == "emergency":
@@ -255,9 +354,15 @@ class TulparController:
         command = mapping.get(key)
         if command:
             self.command(command)
+        elif key == ord("3"):
+            self.set_simulated_pointing_target("target-A")
+        elif key == ord("4"):
+            self.set_simulated_pointing_target("target-B")
 
     def run(self):
         while self.robot.step(TIME_STEP) != -1:
+            self.refresh_recognition()
+            self.update_stop_measurement()
             key = self.keyboard.getKey()
             if key != -1:
                 self.keyboard_command(key)

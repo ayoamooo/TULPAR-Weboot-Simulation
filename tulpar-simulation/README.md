@@ -20,7 +20,8 @@ Open `worlds/tulpar_demo.wbt` in Webots and run the simulation in real-time mode
 Keys:
 
 - `1` — approach the operator.
-- `2` — approach the highlighted target.
+- `2` — approach the marker indicated by the simulated pointing pose.
+- `3` / `4` — set the simulated operator fingertip pose towards marker A / B; then press `2` to test camera-based selection.
 - `S` — stop.
 - `G` — greeting wave.
 - `T` — switch between floor and tabletop modes.
@@ -28,6 +29,8 @@ Keys:
 - `E` — simulated emergency stop.
 
 The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
+
+Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If gesture markers or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
 
 ## Trial plan
 

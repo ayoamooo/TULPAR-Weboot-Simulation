@@ -12,6 +12,7 @@ Robot {
   rotation IS rotation
   name IS name
   controller IS controller
+  supervisor TRUE
   children [
     # Low tracked base: target envelope approximately 0.35 m x 0.30 m.
     DEF BASE Shape {
@@ -50,26 +51,32 @@ Robot {
           children [
             Shape {
               appearance PBRAppearance { baseColor 0.015 0.035 0.06 roughness 0.28 metalness 0.2 }
-              geometry Box { size 0.13 0.18 0.012 }
+              geometry Box { size 0.18 0.13 0.012 }
             }
             Pose {
               translation 0 0 0.008
               children [
-                Shape {
-                  appearance PBRAppearance { baseColor 0.06 0.42 0.56 emissiveColor 0.02 0.15 0.2 roughness 0.35 }
-                  geometry Box { size 0.108 0.155 0.004 }
+                Display {
+                  name "face display"
+                  width 256
+                  height 320
+                  children [
+                    Shape {
+                      appearance Appearance {
+                        material Material { diffuseColor 0.06 0.42 0.56 emissiveColor 0.02 0.15 0.2 }
+                        texture ImageTexture { url [ ] filtering 0 }
+                      }
+                      geometry Box { size 0.18 0.13 0.002 }
+                    }
+                  ]
                 }
-                # Neutral eyes and mouth. The controller later replaces this panel with a drawn Display texture.
-                Pose { translation 0 0.040 0.006 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.97 1 emissiveColor 0.22 0.55 0.65 } geometry Sphere { radius 0.012 } } ] }
-                Pose { translation 0 -0.040 0.006 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.97 1 emissiveColor 0.22 0.55 0.65 } geometry Sphere { radius 0.012 } } ] }
-                Pose { translation 0 -0.005 0.007 children [ Shape { appearance PBRAppearance { baseColor 0.82 0.97 1 emissiveColor 0.22 0.55 0.65 } geometry Box { size 0.028 0.006 0.003 } } ] }
               ]
             }
           ]
         }
         # USB camera above the phone.
         Pose {
-          translation 0.135 0 0.145
+          translation 0.135 0 0.25
           rotation 0 1 0 1.5708
           children [
             Shape { appearance PBRAppearance { baseColor 0.10 0.12 0.14 roughness 0.45 } geometry Box { size 0.055 0.075 0.035 } }
@@ -109,7 +116,7 @@ Robot {
     # coupled to Webots physics rather than translating the robot by script.
     HingeJoint {
       jointParameters HingeJointParameters { axis 0 1 0 anchor 0.13 0.17 0.0 }
-      device [ RotationalMotor { name "left front track motor" maxVelocity 7 maxTorque 12 } ]
+      device [ RotationalMotor { name "left front track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "left front track sensor" } ]
       endPoint Solid {
         translation 0.13 0.17 0.0
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
@@ -119,7 +126,7 @@ Robot {
     }
     HingeJoint {
       jointParameters HingeJointParameters { axis 0 1 0 anchor -0.13 0.17 0.0 }
-      device [ RotationalMotor { name "left rear track motor" maxVelocity 7 maxTorque 12 } ]
+      device [ RotationalMotor { name "left rear track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "left rear track sensor" } ]
       endPoint Solid {
         translation -0.13 0.17 0.0
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
@@ -129,7 +136,7 @@ Robot {
     }
     HingeJoint {
       jointParameters HingeJointParameters { axis 0 1 0 anchor 0.13 -0.17 0.0 }
-      device [ RotationalMotor { name "right front track motor" maxVelocity 7 maxTorque 12 } ]
+      device [ RotationalMotor { name "right front track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "right front track sensor" } ]
       endPoint Solid {
         translation 0.13 -0.17 0.0
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
@@ -139,7 +146,7 @@ Robot {
     }
     HingeJoint {
       jointParameters HingeJointParameters { axis 0 1 0 anchor -0.13 -0.17 0.0 }
-      device [ RotationalMotor { name "right rear track motor" maxVelocity 7 maxTorque 12 } ]
+      device [ RotationalMotor { name "right rear track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "right rear track sensor" } ]
       endPoint Solid {
         translation -0.13 -0.17 0.0
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
@@ -147,9 +154,8 @@ Robot {
         physics Physics { density -1 mass 0.18 }
       }
     }
-    Camera { translation 0.15 0 0.40 rotation 0 1 0 1.5708 name "robot camera" width 640 height 480 fieldOfView 1.15 }
-    DistanceSensor { translation 0.20 0 0.12 rotation 0 1 0 1.5708 name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1500 0 ] aperture 0.28 }
-    Display { name "face display" width 256 height 320 }
+    Camera { translation 0.15 0 0.50 rotation 0 1 0 -1.5708 name "robot camera" width 640 height 480 fieldOfView 1.15 recognition Recognition { } }
+    DistanceSensor { translation 0.20 0 0.12 rotation 0 1 0 -1.5708 name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1500 0 ] aperture 0.28 }
     Speaker { name "speaker" }
     GPS { name "gps" }
     InertialUnit { name "imu" }
