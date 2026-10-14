@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Thread
+from tempfile import NamedTemporaryFile
 import json
 import math
 import os
 import sys
+import time
 
 from controller import Supervisor, Keyboard
 
@@ -20,7 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.command_policy import allow_action, parse_spoken_command
-from core.dialogue import DialogueError, generate_local_dialogue
+from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
@@ -97,6 +99,7 @@ class TulparController:
         self.dialogue_results = Queue()
         self.dialogue_worker = Thread(target=self._dialogue_loop, name="tulpar-dialogue", daemon=True)
         self.dialogue_worker.start()
+        self.last_vision_sample_time = 0.0
         self.voice_listener = None
         model_path = os.environ.get("TULPAR_VOSK_MODEL")
         if model_path:
@@ -117,14 +120,45 @@ class TulparController:
     def _dialogue_loop(self):
         """Keep local LLM latency off the Webots motor-control loop."""
         while True:
-            transcript = self.dialogue_requests.get()
-            if transcript is None:
+            request = self.dialogue_requests.get()
+            if request is None:
                 return
+            transcript, image_bytes = request
+            vision_summary = None
+            vision_error = None
+            if image_bytes:
+                try:
+                    vision_summary = generate_local_vision_summary(image_bytes, transcript)
+                except DialogueError as error:
+                    vision_error = str(error)
             try:
-                result = generate_local_dialogue(transcript)
-                self.dialogue_results.put(("ok", transcript, result))
+                result = generate_local_dialogue(transcript, vision_summary)
+                self.dialogue_results.put(("ok", transcript, result, bool(image_bytes), vision_error))
             except DialogueError as error:
-                self.dialogue_results.put(("error", transcript, str(error)))
+                self.dialogue_results.put(("error", transcript, str(error), bool(image_bytes), vision_error))
+
+    def capture_dialogue_frame(self):
+        """Capture at most one temporary JPEG frame per second during dialogue."""
+        now = time.monotonic()
+        if now - self.last_vision_sample_time < 1.0:
+            return None
+        image_path = None
+        try:
+            with NamedTemporaryFile(suffix=".jpg", delete=False) as image_file:
+                image_path = Path(image_file.name)
+            if not self.camera.saveImage(str(image_path), 88):
+                self.log("vision", "frame_capture_failed")
+                return None
+            image = image_path.read_bytes()
+            self.last_vision_sample_time = now
+            self.log("vision", "frame_captured", bytes=len(image))
+            return image
+        except Exception as error:
+            self.log("vision", "frame_capture_failed", detail=str(error))
+            return None
+        finally:
+            if image_path:
+                image_path.unlink(missing_ok=True)
 
     def process_voice_io(self):
         while True:
@@ -143,20 +177,24 @@ class TulparController:
 
         while True:
             try:
-                status, transcript, result = self.dialogue_results.get_nowait()
+                status, transcript, result, vision_used, vision_error = self.dialogue_results.get_nowait()
             except Empty:
                 break
             if status == "ok":
                 self.set_emotion(result.emotion)
                 self.say(result.response)
                 self.log(
-                    "local_dialogue", "spoken", transcript=transcript,
+                    "local_dialogue", "spoken", vision_used=vision_used,
                     response_char_count=len(result.response), emotion=result.emotion,
                 )
+                if vision_error:
+                    self.log("vision", "model_error", detail=vision_error)
             else:
                 self.set_emotion("neutral")
                 self.say("My local conversation model is unavailable right now.")
-                self.log("local_dialogue", "error", detail=result)
+                self.log("local_dialogue", "error", detail=result, vision_used=vision_used)
+                if vision_error:
+                    self.log("vision", "model_error", detail=vision_error)
 
     def log(self, command, outcome, **extra):
         row = {
@@ -412,7 +450,7 @@ class TulparController:
         self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
         try:
-            self.dialogue_requests.put_nowait(text)
+            self.dialogue_requests.put_nowait((text, self.capture_dialogue_frame()))
         except Full:
             self.say("Please wait while I finish my last answer.")
             self.log("local_dialogue", "queue_full")

@@ -11,7 +11,7 @@ The first scene represents a controlled university demonstration room. It includ
 - `say hello` runs a non-contact wave with the tracks stopped.
 - The controller records command, mode, outcome, and simulated timing in `logs/tulpar-events.jsonl`.
 
-The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Allow-listed commands go directly through `core/command_policy.py`; ordinary conversation is sent to local Ollama (`qwen3:4b` by default) on a background thread. The LLM can return only a reply and a supported emotion, never a motion command. Webots' Speaker reads replies aloud.
+The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Allow-listed commands go directly through `core/command_policy.py`; ordinary conversation sends one camera frame per voice turn (capped at one per second) to local Ollama (`qwen2.5vl:3b`) for scene context, then asynchronously asks `qwen3:4b` for a response. The text model can return only a reply and a supported emotion, never a motion command. Webots' Speaker reads replies aloud.
 
 ## Planned launch
 
