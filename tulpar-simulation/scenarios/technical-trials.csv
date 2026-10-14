@@ -1,0 +1,6 @@
+trial_id,scenario,placement,input,target,success_definition
+01-10,approach_operator,floor,come to me,operator,robot stops at pilot-defined final distance
+11-20,approach_marked_target,floor,go to that marker,marked vertical target,robot selects indicated target and stops at pilot-defined final distance
+21-30,stop,floor,stop,moving robot,tracks reach zero speed after valid command
+31-35,greeting,tabletop,say hello,none,voice face and arm wave complete while tracks are locked
+36-40,greeting,floor,say hello,none,voice face and arm wave complete while tracks remain stationary
