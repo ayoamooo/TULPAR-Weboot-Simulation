@@ -1,6 +1,41 @@
-trial_id,scenario,placement,input,target,success_definition
-01-10,approach_operator,floor,come to me,operator,robot stops at pilot-defined final distance
-11-20,approach_marked_target,floor,go to that marker,marked vertical target,robot selects indicated target and stops at pilot-defined final distance
-21-30,stop,floor,stop,moving robot,tracks reach zero speed after valid command
-31-35,greeting,tabletop,say hello,none,voice face and arm wave complete while tracks are locked
-36-40,greeting,floor,say hello,none,voice face and arm wave complete while tracks remain stationary
+trial_id,scenario,placement,command,target
+T01,approach_operator,floor,come to me,operator
+T02,approach_operator,floor,come to me,operator
+T03,approach_operator,floor,come to me,operator
+T04,approach_operator,floor,come to me,operator
+T05,approach_operator,floor,come to me,operator
+T06,approach_operator,floor,come to me,operator
+T07,approach_operator,floor,come to me,operator
+T08,approach_operator,floor,come to me,operator
+T09,approach_operator,floor,come to me,operator
+T10,approach_operator,floor,come to me,operator
+T11,approach_marked_target,floor,go to that marker,indicated marker
+T12,approach_marked_target,floor,go to that marker,indicated marker
+T13,approach_marked_target,floor,go to that marker,indicated marker
+T14,approach_marked_target,floor,go to that marker,indicated marker
+T15,approach_marked_target,floor,go to that marker,indicated marker
+T16,approach_marked_target,floor,go to that marker,indicated marker
+T17,approach_marked_target,floor,go to that marker,indicated marker
+T18,approach_marked_target,floor,go to that marker,indicated marker
+T19,approach_marked_target,floor,go to that marker,indicated marker
+T20,approach_marked_target,floor,go to that marker,indicated marker
+T21,stop,floor,stop,moving robot
+T22,stop,floor,stop,moving robot
+T23,stop,floor,stop,moving robot
+T24,stop,floor,stop,moving robot
+T25,stop,floor,stop,moving robot
+T26,stop,floor,stop,moving robot
+T27,stop,floor,stop,moving robot
+T28,stop,floor,stop,moving robot
+T29,stop,floor,stop,moving robot
+T30,stop,floor,stop,moving robot
+T31,greeting,tabletop,say hello,none
+T32,greeting,tabletop,say hello,none
+T33,greeting,tabletop,say hello,none
+T34,greeting,tabletop,say hello,none
+T35,greeting,tabletop,say hello,none
+T36,greeting,floor,say hello,none
+T37,greeting,floor,say hello,none
+T38,greeting,floor,say hello,none
+T39,greeting,floor,say hello,none
+T40,greeting,floor,say hello,none
