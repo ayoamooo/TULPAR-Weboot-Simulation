@@ -33,7 +33,7 @@ Keys:
 - `5` — start the next planned technical trial (requires the listed placement mode).
 - `6` / `7` — record the active trial as pass / fail after checking its stated outcome.
 
-The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
+The scene is a software simulation. Floor, carpet, and tabletop friction are separate provisional contact settings that need pilot tuning; they are not measured material properties. The simulation does not establish physical braking distance, power consumption, or hardware safety.
 
 For microphone and local dialogue setup, see [`docs/voice-setup.md`](docs/voice-setup.md). Without a Vosk model directory, microphone input is disabled and keyboard controls remain available. Without the Ollama service, ordinary conversation reports an unavailable local model; fixed commands such as `stop` continue to be handled by the controller.
 
