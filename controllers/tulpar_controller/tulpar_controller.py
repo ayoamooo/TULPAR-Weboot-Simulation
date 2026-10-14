@@ -90,6 +90,9 @@ class TulparController:
         self.emergency_stop = False
         self.action = None
         self.target = None
+        self.command_received_at = None
+        self.pending_movement_response_start = None
+        self.pending_greeting_response_start = None
         self.stop_detector = WheelStopDetector()
         self.range_safety = RangeSafetyMonitor()
         self.range_fault_injected = False
@@ -220,6 +223,7 @@ class TulparController:
 
     def say(self, message):
         self.speaker.speak(message, 1.0)
+        self.log("voice_output", "started", response_char_count=len(message))
 
     def draw_face(self, emotion, time_s=None):
         self.emotion = emotion
@@ -281,7 +285,12 @@ class TulparController:
         self.tracks(0.0, 0.0)
         self.action = None
         self.target = None
-        self.pending_stop_time = self.robot.getTime()
+        self.pending_stop_time = (
+            self.command_received_at
+            if self.command_received_at is not None else self.robot.getTime()
+        )
+        self.pending_movement_response_start = None
+        self.pending_greeting_response_start = None
         self.stop_detector.stable_count = 0
         self.log("stop", "commanded", reason=reason)
         self.say("Stopped.")
@@ -310,7 +319,8 @@ class TulparController:
         left, right = poses[emotion]
         self.left_arm.setPosition(left)
         self.right_arm.setPosition(right)
-        self.log("emotion", "displayed", emotion=emotion)
+        self.log("face_display", "emotion_started", emotion=emotion)
+        self.log("arm_pose", "emotion_started", emotion=emotion)
 
     def begin_approach(self, target, label):
         if self.mode != "floor":
@@ -323,6 +333,10 @@ class TulparController:
             return
         self.target = target
         self.action = "approach"
+        self.pending_movement_response_start = (
+            self.command_received_at
+            if self.command_received_at is not None else self.robot.getTime()
+        )
         self.set_emotion("thinking")
         self.say("I am coming.")
         self.log(label, "accepted", target=target)
@@ -418,11 +432,18 @@ class TulparController:
             self.tracks(0.0, 0.0)
             self.action = None
             self.target = None
+            self.pending_movement_response_start = None
             self.set_emotion("happy")
             self.say("I have arrived.")
             self.log("approach", "arrived", distance=round(command.distance, 3))
             return
         self.tracks(command.left, command.right)
+        if self.pending_movement_response_start is not None and (command.left or command.right):
+            self.log(
+                "movement", "started",
+                response_time_s=round(self.robot.getTime() - self.pending_movement_response_start, 3),
+            )
+            self.pending_movement_response_start = None
 
     def update_wave(self):
         self.tracks(0.0, 0.0)
@@ -430,6 +451,12 @@ class TulparController:
         swing = 0.42 * math.sin(self.wave_phase * 7.0)
         self.left_arm.setPosition(-0.28 + swing)
         self.right_arm.setPosition(0.20)
+        if self.pending_greeting_response_start is not None:
+            self.log(
+                "greeting", "gesture_started",
+                response_time_s=round(self.robot.getTime() - self.pending_greeting_response_start, 3),
+            )
+            self.pending_greeting_response_start = None
         if self.wave_phase > 2.2:
             self.wave_phase = 0.0
             self.action = None
@@ -450,6 +477,10 @@ class TulparController:
             self.tracks(0.0, 0.0)
             self.action = "wave"
             self.wave_phase = 0.0
+            self.pending_greeting_response_start = (
+                self.command_received_at
+                if self.command_received_at is not None else self.robot.getTime()
+            )
             self.set_emotion("happy")
             self.log("greeting", "accepted")
         elif value == "mode":
@@ -532,7 +563,11 @@ class TulparController:
         }
         handler = handlers.get(decision.action)
         if handler:
-            handler()
+            self.command_received_at = self.robot.getTime()
+            try:
+                handler()
+            finally:
+                self.command_received_at = None
             return
         self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
@@ -552,7 +587,11 @@ class TulparController:
         }
         command = mapping.get(key)
         if command:
-            self.command(command)
+            self.command_received_at = self.robot.getTime()
+            try:
+                self.command(command)
+            finally:
+                self.command_received_at = None
         elif key == ord("5"):
             self.start_trial()
         elif key == ord("6"):

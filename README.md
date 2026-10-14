@@ -9,7 +9,7 @@ The first scene represents a controlled university demonstration room. It includ
 - Floor mode: `come to me`, `go to marker`, and `stop` control the tracked base.
 - Tabletop mode: the tracks remain locked; speech, animated face expressions, and arm gestures remain available.
 - `say hello` runs a non-contact wave with the tracks stopped.
-- The controller records command, mode, outcome, and simulated timing in `logs/tulpar-events.jsonl`.
+- The controller records command, mode, outcome, response timing, and channel-start timestamps in `logs/tulpar-events.jsonl`.
 
 The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Allow-listed commands go directly through `core/command_policy.py`; ordinary conversation sends one camera frame per voice turn (capped at one per second) to local Ollama (`qwen2.5vl:3b`) for scene context, then asynchronously asks `qwen3:4b` for a response. The text model can return only a reply and a supported emotion, never a motion command. Webots' Speaker reads replies aloud.
 
