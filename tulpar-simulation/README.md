@@ -54,3 +54,7 @@ For the full setup and per-trial procedure, see [`docs/simulation-runbook.md`](d
 The controller event log tags scenario events with the active trial ID. The marker-selection block alternates the expected target evenly between target A and target B; the trial prompt tells you which simulated pointing-pose key to use. After running trials, `python -m core.trial_analysis` prints counts, observed pass rates, target-selection accuracy, response-time summaries, and channel-start spreads from those files. Empty or unmeasured quantities stay unavailable; the analysis does not invent values. The greeting voice now starts with the face response, just before the first simulated arm movement.
 
 ![Webots preview of TULPAR greeting in tabletop mode](docs/assets/tulpar-walkthrough-preview.png)
+
+## Screenshots
+
+See the [Webots scene screenshot gallery](docs/showcase.md#scene-screenshots) for stop, greeting, and expression-preview captures.
