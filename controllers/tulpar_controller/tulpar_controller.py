@@ -722,6 +722,22 @@ class TulparController:
             self.say("The required behaviour has not completed yet; record fail or continue the trial.")
             self.log("trial", "pass_rejected_incomplete", trial_id=trial.trial_id)
             return
+        if outcome == "fail" and trial:
+            # A failed attempt must not leave the simulated robot moving after
+            # its result has been recorded. Do not call stop(): that path
+            # represents the measured operator stop command in stop trials.
+            self.tracks(0.0, 0.0)
+            self.action = None
+            self.target = None
+            self.approach_motion_started = False
+            self.pending_movement_response_start = None
+            self.pending_greeting_response_start = None
+            self.pending_stop_time = None
+            self.wave_phase = 0.0
+            self.left_arm.setPosition(0.0)
+            self.right_arm.setPosition(0.0)
+            self.draw_face("neutral")
+            self.log("trial", "failed_behaviour_cancelled", trial_id=trial.trial_id)
         try:
             row = self.trial_recorder.finish(outcome, self.robot.getTime())
         except RuntimeError:
