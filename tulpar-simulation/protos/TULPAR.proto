@@ -122,6 +122,7 @@ Robot {
       device [ RotationalMotor { name "left front track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "left front track sensor" } ]
       endPoint Solid {
         translation 0.13 0.17 0.0
+        contactMaterial "track"
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
@@ -132,6 +133,7 @@ Robot {
       device [ RotationalMotor { name "left rear track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "left rear track sensor" } ]
       endPoint Solid {
         translation -0.13 0.17 0.0
+        contactMaterial "track"
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
@@ -142,6 +144,7 @@ Robot {
       device [ RotationalMotor { name "right front track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "right front track sensor" } ]
       endPoint Solid {
         translation 0.13 -0.17 0.0
+        contactMaterial "track"
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
@@ -152,6 +155,7 @@ Robot {
       device [ RotationalMotor { name "right rear track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "right rear track sensor" } ]
       endPoint Solid {
         translation -0.13 -0.17 0.0
+        contactMaterial "track"
         children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }

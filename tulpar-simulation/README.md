@@ -29,19 +29,22 @@ Keys:
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
 - `E` — simulated emergency stop.
 - `F` — toggle an invalid-range-sensor fault for the retry/stop check.
+- `C` — cycle the overview, overhead, and robot-following scene views.
 - `5` — start the next planned technical trial (requires the listed placement mode).
 - `6` / `7` — record the active trial as pass / fail after checking its stated outcome.
 
-The scene is a software simulation. It does not establish physical braking distance, power consumption, or hardware safety.
+The scene is a software simulation. Floor, carpet, and tabletop friction are separate provisional contact settings that need pilot tuning; they are not measured material properties. The simulation does not establish physical braking distance, power consumption, or hardware safety.
 
 For microphone and local dialogue setup, see [`docs/voice-setup.md`](docs/voice-setup.md). Without a Vosk model directory, microphone input is disabled and keyboard controls remain available. Without the Ollama service, ordinary conversation reports an unavailable local model; fixed commands such as `stop` continue to be handled by the controller.
 
-Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If gesture markers or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
+Approach to the operator requires a fresh camera recognition of the operator. The simulation then uses the operator's Webots world pose for navigation; that pose is simulator ground truth rather than a vision-model estimate. Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If the operator, gesture markers, or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
 
 ## Trial plan
 
 `scenarios/technical-trials.csv` lists each of the 40 planned trials separately. Regenerate it with `python -m core.trial_protocol` after changing the allocation. It contains inputs only; results and timestamps must come from actual simulation runs. The 10 greeting trials are split evenly between tabletop and floor placement.
 
 The controller writes completed outcomes to `logs/technical-trial-results.csv`. Start a trial with `5`; the robot is reset to the same floor or tabletop pose between trials. For stop trials, it begins approaching the operator so you can issue `stop` while the tracks are moving. Use `6` for pass or `7` for fail after observing the outcome. A pass is rejected until the scenario reaches its measured success condition. The CSV records the planned scenario and elapsed Webots simulation time; an unrun trial has no result row. Existing result rows are kept and the controller resumes at the first unrecorded trial ID.
+
+For the full setup and per-trial procedure, see [`docs/simulation-runbook.md`](docs/simulation-runbook.md). Marking a trial as failed now cancels the current movement or wave before the result is saved.
 
 The controller event log tags scenario events with the active trial ID. The marker-selection block alternates the expected target evenly between target A and target B; the trial prompt tells you which simulated pointing-pose key to use. After running trials, `python -m core.trial_analysis` prints counts, observed pass rates, target-selection accuracy, response-time summaries, and channel-start spreads from those files. Empty or unmeasured quantities stay unavailable; the analysis does not invent values. The greeting voice now starts with the face response, just before the first simulated arm movement.

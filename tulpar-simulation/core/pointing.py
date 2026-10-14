@@ -80,3 +80,20 @@ def update_selection_success(
     if selected is None:
         return previous
     return selected == expected
+
+
+def recognized_world_target(
+    visible_labels: Iterable[str], target_label: str, world_position: Iterable[float]
+) -> tuple[float, float] | None:
+    """Return a simulator target position only when its label is camera-visible.
+
+    The world pose is simulator ground truth. Requiring a visible recognition
+    label prevents the approach scenario from silently using a fixed target when
+    the camera cannot see the operator.
+    """
+    if target_label not in visible_labels:
+        return None
+    coordinates = tuple(float(value) for value in world_position)
+    if len(coordinates) < 2 or not all(math.isfinite(value) for value in coordinates[:2]):
+        raise ValueError("recognized target needs finite world X and Y coordinates")
+    return coordinates[0], coordinates[1]

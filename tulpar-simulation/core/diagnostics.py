@@ -4,9 +4,12 @@
 VISIBLE_DETAILS = (
     "trial_id",
     "scenario",
+    "view",
     "target",
     "expected",
     "selected",
+    "image_x",
+    "image_y",
     "reason",
     "distance_m",
     "pointing_error_deg",

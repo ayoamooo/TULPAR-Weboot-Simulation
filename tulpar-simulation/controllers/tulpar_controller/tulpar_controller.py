@@ -27,14 +27,21 @@ from core.dialogue import DialogueError, generate_local_dialogue, generate_local
 from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
-from core.pointing import ImagePoint, select_pointed_target, update_selection_success
+from core.pointing import (
+    ImagePoint,
+    recognized_world_target,
+    select_pointed_target,
+    update_selection_success,
+)
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
+from core.viewpoint import look_at_orientation
 
 
 TIME_STEP = 32
 APPROACH_DISTANCE = 0.50
+MAX_RECOGNITION_AGE = 1.25
 MAX_SPEED = 3.0
 TURN_SPEED = 1.7
 ARRIVAL_TOLERANCE = 0.08
@@ -73,11 +80,14 @@ class TulparController:
             "target-A": self.robot.getFromDef("MARKER_A"),
             "target-B": self.robot.getFromDef("MARKER_B"),
         }
+        self.operator_node = self.robot.getFromDef("OPERATOR")
         self.pointing_nodes = {
             "operator-shoulder": self.robot.getFromDef("OPERATOR_SHOULDER"),
             "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
         }
         self.latest_recognition = {}
+        self.last_recognition_time = None
+        self.last_recognition_refresh = -1.0
         self.last_selected_marker = None
         self.pointing_pose_ready_time = 0.0
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
@@ -89,6 +99,12 @@ class TulparController:
             motor.setPosition(float("inf"))
             motor.setVelocity(0.0)
         self.mode = "floor"
+        self.camera_view = "overview"
+        self.viewpoint_node = self.robot.getFromDef("SCENE_VIEW")
+        if self.viewpoint_node is None:
+            raise RuntimeError("world must define the SCENE_VIEW Viewpoint")
+        self.viewpoint_position = self.viewpoint_node.getField("position")
+        self.viewpoint_orientation = self.viewpoint_node.getField("orientation")
         self.self_node = self.robot.getSelf()
         self.translation_field = self.self_node.getField("translation")
         self.rotation_field = self.self_node.getField("rotation")
@@ -137,6 +153,7 @@ class TulparController:
         else:
             self.log("microphone", "disabled", reason="TULPAR_VOSK_MODEL is not configured")
         self.draw_face("neutral")
+        self.set_camera_view("overview")
         self.say("TULPAR is ready.")
         self.log("startup", "ready")
 
@@ -234,6 +251,42 @@ class TulparController:
         with self.event_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
         print(format_status_event(row), flush=True)
+
+    def set_camera_view(self, view=None):
+        """Cycle overview, overhead, and robot-follow camera presets."""
+        views = ("overview", "overhead", "robot")
+        if view is None:
+            view = views[(views.index(self.camera_view) + 1) % len(views)]
+        if view not in views:
+            raise ValueError(f"unknown camera view: {view}")
+        self.camera_view = view
+        if view == "overview":
+            position, target, up = (4.5, -6.2, 4.1), (0.0, 0.0, 0.55), (0.0, 0.0, 1.0)
+            self._apply_viewpoint(position, target, up)
+        elif view == "overhead":
+            position, target, up = (0.0, -0.1, 7.0), (0.0, -0.1, 0.0), (0.0, -1.0, 0.0)
+            self._apply_viewpoint(position, target, up)
+        else:
+            self.update_robot_follow_view()
+        self.log("viewpoint", "changed", view=view)
+
+    def _apply_viewpoint(self, position, target, up=(0.0, 0.0, 1.0)):
+        self.viewpoint_position.setSFVec3f(list(position))
+        self.viewpoint_orientation.setSFRotation(
+            list(look_at_orientation(position, target, up))
+        )
+
+    def update_robot_follow_view(self):
+        if self.camera_view != "robot":
+            return
+        x, y, z = self.gps.getValues()
+        yaw = self.imu.getRollPitchYaw()[2]
+        local_x, local_y = -1.15, -1.55
+        offset_x = math.cos(yaw) * local_x - math.sin(yaw) * local_y
+        offset_y = math.sin(yaw) * local_x + math.cos(yaw) * local_y
+        position = (x + offset_x, y + offset_y, z + 1.05)
+        target = (x, y, z + 0.30)
+        self._apply_viewpoint(position, target)
 
     def say(self, message, utterance_type="response"):
         self.speaker.speak(message, 1.0)
@@ -370,13 +423,44 @@ class TulparController:
         self.say("I am coming.")
 
     def refresh_recognition(self):
-        """Snapshot recognized model labels and image centres from the camera."""
+        """Snapshot camera recognitions at the configured one-second cadence."""
+        now = self.robot.getTime()
+        if now - self.last_recognition_refresh < 1.0:
+            return
+        self.last_recognition_refresh = now
         self.latest_recognition = {}
         for item in self.camera.getRecognitionObjects():
             label = item.getModel()
             if label:
                 x, y = item.getPositionOnImage()
                 self.latest_recognition[label] = (float(x), float(y))
+        self.last_recognition_time = now
+
+    def detected_operator_target(self):
+        """Use camera visibility as a gate before reading the simulated pose."""
+        now = self.robot.getTime()
+        if (
+            self.last_recognition_time is None
+            or now - self.last_recognition_time > MAX_RECOGNITION_AGE
+        ):
+            self.log("come_to_me", "rejected_vision", reason="recognition_frame_stale")
+            self.say("I need a fresh camera image. Please repeat the command.")
+            return None
+        target = recognized_world_target(
+            self.latest_recognition,
+            "operator-torso",
+            self.operator_node.getPosition(),
+        )
+        if target is None:
+            self.log("come_to_me", "rejected_vision", reason="operator_not_visible")
+            self.say("I cannot see you. Please move into view and repeat the command.")
+            return None
+        image_x, image_y = self.latest_recognition["operator-torso"]
+        self.log(
+            "come_to_me", "vision_target_selected", target="operator",
+            image_x=round(image_x, 1), image_y=round(image_y, 1),
+        )
+        return target
 
     def pointed_marker_target(self):
         self.last_selected_marker = None
@@ -512,7 +596,9 @@ class TulparController:
 
     def command(self, value):
         if value == "operator":
-            self.begin_approach((1.45, -1.10), "come_to_me")
+            target = self.detected_operator_target()
+            if target is not None:
+                self.begin_approach(target, "come_to_me")
         elif value == "marker":
             target = self.pointed_marker_target()
             if target is not None:
@@ -636,6 +722,22 @@ class TulparController:
             self.say("The required behaviour has not completed yet; record fail or continue the trial.")
             self.log("trial", "pass_rejected_incomplete", trial_id=trial.trial_id)
             return
+        if outcome == "fail" and trial:
+            # A failed attempt must not leave the simulated robot moving after
+            # its result has been recorded. Do not call stop(): that path
+            # represents the measured operator stop command in stop trials.
+            self.tracks(0.0, 0.0)
+            self.action = None
+            self.target = None
+            self.approach_motion_started = False
+            self.pending_movement_response_start = None
+            self.pending_greeting_response_start = None
+            self.pending_stop_time = None
+            self.wave_phase = 0.0
+            self.left_arm.setPosition(0.0)
+            self.right_arm.setPosition(0.0)
+            self.draw_face("neutral")
+            self.log("trial", "failed_behaviour_cancelled", trial_id=trial.trial_id)
         try:
             row = self.trial_recorder.finish(outcome, self.robot.getTime())
         except RuntimeError:
@@ -710,10 +812,13 @@ class TulparController:
             self.set_simulated_pointing_target("target-A")
         elif key == ord("4"):
             self.set_simulated_pointing_target("target-B")
+        elif key == ord("C"):
+            self.set_camera_view()
 
     def run(self):
         try:
             while self.robot.step(TIME_STEP) != -1:
+                self.update_robot_follow_view()
                 self.update_face_animation()
                 self.refresh_recognition()
                 self.update_stop_measurement()
