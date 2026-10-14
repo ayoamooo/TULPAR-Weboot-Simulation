@@ -6,8 +6,11 @@ is independent from it so voice, local LLM, and vision adapters can use the same
 
 from datetime import datetime, timezone
 from pathlib import Path
+from queue import Empty, Full, Queue
+from threading import Thread
 import json
 import math
+import os
 import sys
 
 from controller import Supervisor, Keyboard
@@ -17,6 +20,8 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.command_policy import allow_action, parse_spoken_command
+from core.dialogue import DialogueError, generate_local_dialogue
+from core.microphone import VoskMicrophone
 from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
 from core.stop_measurement import WheelStopDetector
@@ -86,9 +91,72 @@ class TulparController:
         self.wave_phase = 0.0
         self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
         self.event_file.parent.mkdir(exist_ok=True)
+        self.transcripts = Queue()
+        self.voice_errors = Queue()
+        self.dialogue_requests = Queue(maxsize=4)
+        self.dialogue_results = Queue()
+        self.dialogue_worker = Thread(target=self._dialogue_loop, name="tulpar-dialogue", daemon=True)
+        self.dialogue_worker.start()
+        self.voice_listener = None
+        model_path = os.environ.get("TULPAR_VOSK_MODEL")
+        if model_path:
+            try:
+                self.voice_listener = VoskMicrophone(
+                    model_path, self.transcripts.put, self.voice_errors.put
+                )
+                self.voice_listener.start()
+                self.log("microphone", "starting", model_path=model_path)
+            except Exception as error:
+                self.voice_errors.put(str(error))
+        else:
+            self.log("microphone", "disabled", reason="TULPAR_VOSK_MODEL is not configured")
         self.draw_face("neutral")
         self.say("TULPAR is ready.")
         self.log("startup", "ready")
+
+    def _dialogue_loop(self):
+        """Keep local LLM latency off the Webots motor-control loop."""
+        while True:
+            transcript = self.dialogue_requests.get()
+            if transcript is None:
+                return
+            try:
+                result = generate_local_dialogue(transcript)
+                self.dialogue_results.put(("ok", transcript, result))
+            except DialogueError as error:
+                self.dialogue_results.put(("error", transcript, str(error)))
+
+    def process_voice_io(self):
+        while True:
+            try:
+                error = self.voice_errors.get_nowait()
+            except Empty:
+                break
+            self.log("microphone", "error", detail=error)
+
+        while True:
+            try:
+                transcript = self.transcripts.get_nowait()
+            except Empty:
+                break
+            self.dispatch_spoken_text(transcript)
+
+        while True:
+            try:
+                status, transcript, result = self.dialogue_results.get_nowait()
+            except Empty:
+                break
+            if status == "ok":
+                self.set_emotion(result.emotion)
+                self.say(result.response)
+                self.log(
+                    "local_dialogue", "spoken", transcript=transcript,
+                    response_char_count=len(result.response), emotion=result.emotion,
+                )
+            else:
+                self.set_emotion("neutral")
+                self.say("My local conversation model is unavailable right now.")
+                self.log("local_dialogue", "error", detail=result)
 
     def log(self, command, outcome, **extra):
         row = {
@@ -320,13 +388,14 @@ class TulparController:
             self.set_emotion(value)
 
     def dispatch_spoken_text(self, text):
-        """Accept a validated transcript from a future local ASR adapter.
+        """Route ASR text through the fixed action policy before any actuation.
 
-        This function deliberately does not accept arbitrary LLM output as motion.
+        Movement is dispatched directly from the allow-listed transcript. Only
+        ordinary conversation is sent to the local LLM, which cannot issue actions.
         """
         decision = parse_spoken_command(text)
         if not allow_action(decision, self.mode, self.emergency_stop):
-            self.log("spoken_text", "rejected_by_safety_gate", transcript=text, action=decision.action)
+            self.log("spoken_text", "rejected_by_safety_gate", action=decision.action)
             self.say("That action is unavailable in the current mode.")
             return
         handlers = {
@@ -340,9 +409,13 @@ class TulparController:
         if handler:
             handler()
             return
-        self.log("spoken_text", "conversation_needed", transcript=text)
+        self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
-        self.say("I heard you. The local dialogue service is not connected yet.")
+        try:
+            self.dialogue_requests.put_nowait(text)
+        except Full:
+            self.say("Please wait while I finish my last answer.")
+            self.log("local_dialogue", "queue_full")
 
     def keyboard_command(self, key):
         mapping = {
@@ -360,16 +433,25 @@ class TulparController:
             self.set_simulated_pointing_target("target-B")
 
     def run(self):
-        while self.robot.step(TIME_STEP) != -1:
-            self.refresh_recognition()
-            self.update_stop_measurement()
-            key = self.keyboard.getKey()
-            if key != -1:
-                self.keyboard_command(key)
-            if self.action == "approach":
-                self.update_approach()
-            elif self.action == "wave":
-                self.update_wave()
+        try:
+            while self.robot.step(TIME_STEP) != -1:
+                self.refresh_recognition()
+                self.update_stop_measurement()
+                self.process_voice_io()
+                key = self.keyboard.getKey()
+                if key != -1:
+                    self.keyboard_command(key)
+                if self.action == "approach":
+                    self.update_approach()
+                elif self.action == "wave":
+                    self.update_wave()
+        finally:
+            if self.voice_listener:
+                self.voice_listener.stop()
+            try:
+                self.dialogue_requests.put_nowait(None)
+            except Full:
+                pass
 
 
 if __name__ == "__main__":

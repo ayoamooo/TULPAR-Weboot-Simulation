@@ -4,5 +4,8 @@ version = "0.1.0"
 description = "Webots demonstration and control logic for the TULPAR research prototype"
 requires-python = ">=3.11"
 
+[project.optional-dependencies]
+voice = ["vosk>=0.3.45", "sounddevice>=0.5.0"]
+
 [tool.unittest]
 start-directory = "tests"
