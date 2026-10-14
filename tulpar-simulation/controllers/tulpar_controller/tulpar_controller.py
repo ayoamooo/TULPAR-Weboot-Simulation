@@ -22,11 +22,12 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.command_policy import allow_action, parse_spoken_command
+from core.diagnostics import format_status_event
 from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
 from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
-from core.pointing import ImagePoint, select_pointed_target
+from core.pointing import ImagePoint, select_pointed_target, update_selection_success
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
@@ -232,6 +233,7 @@ class TulparController:
         }
         with self.event_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
+        print(format_status_event(row), flush=True)
 
     def say(self, message, utterance_type="response"):
         self.speaker.speak(message, 1.0)
@@ -394,8 +396,6 @@ class TulparController:
             self.log("go_to_marker", "rejected_vision", reason=result.reason)
             trial = self.trial_recorder.current
             if trial and trial.scenario == "approach_marked_target":
-                if self.trial_target_selection_correct is None:
-                    self.trial_target_selection_correct = False
                 self.log(
                     "target_selection", "rejected", expected=trial.target,
                     reason=result.reason,
@@ -519,8 +519,11 @@ class TulparController:
                 trial = self.trial_recorder.current
                 if trial and trial.scenario == "approach_marked_target":
                     correct = self.last_selected_marker == trial.target
-                    if self.trial_target_selection_correct is None:
-                        self.trial_target_selection_correct = correct
+                    self.trial_target_selection_correct = update_selection_success(
+                        self.trial_target_selection_correct,
+                        trial.target,
+                        self.last_selected_marker,
+                    )
                     self.log(
                         "target_selection", "correct" if correct else "incorrect",
                         expected=trial.target, selected=self.last_selected_marker,

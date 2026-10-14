@@ -1,6 +1,6 @@
 import unittest
 
-from core.pointing import ImagePoint, select_pointed_target
+from core.pointing import ImagePoint, select_pointed_target, update_selection_success
 
 
 class PointingSelectionTests(unittest.TestCase):
@@ -40,6 +40,20 @@ class PointingSelectionTests(unittest.TestCase):
             [ImagePoint("target-A", 150, 50), ImagePoint("target-B", 150, 52)],
         )
         self.assertEqual(result.reason, "ambiguous_pointing")
+
+    def test_rejected_attempt_does_not_prevent_a_later_correct_selection(self):
+        status = update_selection_success(None, "target-A", None)
+        self.assertIsNone(status)
+        status = update_selection_success(status, "target-A", "target-A")
+        self.assertTrue(status)
+
+    def test_latest_accepted_selection_determines_trial_selection_status(self):
+        status = update_selection_success(None, "target-A", "target-B")
+        self.assertFalse(status)
+        status = update_selection_success(status, "target-A", None)
+        self.assertFalse(status)
+        status = update_selection_success(status, "target-A", "target-A")
+        self.assertTrue(status)
 
 
 if __name__ == "__main__":

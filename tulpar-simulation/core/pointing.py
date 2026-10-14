@@ -71,3 +71,12 @@ def select_pointed_target(
     if len(candidates) > 1 and candidates[1][0] - candidates[0][0] < ambiguity_margin_deg:
         return PointingSelection(None, candidates[0][0], "ambiguous_pointing")
     return PointingSelection(candidates[0][1], candidates[0][0], "selected")
+
+
+def update_selection_success(
+    previous: bool | None, expected: str, selected: str | None
+) -> bool | None:
+    """Keep the latest accepted selection; a rejected attempt changes no state."""
+    if selected is None:
+        return previous
+    return selected == expected
