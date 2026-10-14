@@ -11,7 +11,7 @@ The first scene represents a controlled university demonstration room. It includ
 - `say hello` runs a non-contact wave with the tracks stopped.
 - The controller records command, mode, outcome, and simulated timing in `logs/tulpar-events.jsonl`.
 
-The initial controller uses keyboard input while the microphone, local speech recognition, and local LLM adapters are added after the scene can be launched and verified. Keyboard input is only a development control path.
+The initial controller uses keyboard input while the microphone, local speech recognition, and local LLM adapters are added after the scene can be launched and verified. Keyboard input is only a development control path. All future transcripts pass through `core/command_policy.py`; a language model cannot issue unrestricted drive commands.
 
 ## Planned launch
 

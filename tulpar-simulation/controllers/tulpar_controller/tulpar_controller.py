@@ -4,11 +4,19 @@ Keyboard input is deliberately kept as a development adapter. The command dispat
 is independent from it so voice, local LLM, and vision adapters can use the same gates.
 """
 
-from controller import Robot, Keyboard
 from datetime import datetime, timezone
 from pathlib import Path
 import json
 import math
+import sys
+
+from controller import Robot, Keyboard
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from core.command_policy import allow_action, parse_spoken_command
 
 
 TIME_STEP = 32
@@ -211,6 +219,31 @@ class TulparController:
             self.log("emergency_stop", "active" if self.emergency_stop else "cleared")
         else:
             self.set_emotion(value)
+
+    def dispatch_spoken_text(self, text):
+        """Accept a validated transcript from a future local ASR adapter.
+
+        This function deliberately does not accept arbitrary LLM output as motion.
+        """
+        decision = parse_spoken_command(text)
+        if not allow_action(decision, self.mode, self.emergency_stop):
+            self.log("spoken_text", "rejected_by_safety_gate", transcript=text, action=decision.action)
+            self.say("That action is unavailable in the current mode.")
+            return
+        handlers = {
+            "stop": lambda: self.command("stop"),
+            "approach_operator": lambda: self.command("operator"),
+            "approach_marker": lambda: self.command("marker"),
+            "greet": lambda: self.command("greet"),
+            "emotion": lambda: self.command(decision.emotion),
+        }
+        handler = handlers.get(decision.action)
+        if handler:
+            handler()
+            return
+        self.log("spoken_text", "conversation_needed", transcript=text)
+        self.set_emotion("thinking")
+        self.say("I heard you. The local dialogue service is not connected yet.")
 
     def keyboard_command(self, key):
         mapping = {
