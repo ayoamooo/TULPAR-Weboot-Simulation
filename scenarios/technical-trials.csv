@@ -9,16 +9,16 @@ T07,approach_operator,floor,come to me,operator
 T08,approach_operator,floor,come to me,operator
 T09,approach_operator,floor,come to me,operator
 T10,approach_operator,floor,come to me,operator
-T11,approach_marked_target,floor,go to that marker,indicated marker
-T12,approach_marked_target,floor,go to that marker,indicated marker
-T13,approach_marked_target,floor,go to that marker,indicated marker
-T14,approach_marked_target,floor,go to that marker,indicated marker
-T15,approach_marked_target,floor,go to that marker,indicated marker
-T16,approach_marked_target,floor,go to that marker,indicated marker
-T17,approach_marked_target,floor,go to that marker,indicated marker
-T18,approach_marked_target,floor,go to that marker,indicated marker
-T19,approach_marked_target,floor,go to that marker,indicated marker
-T20,approach_marked_target,floor,go to that marker,indicated marker
+T11,approach_marked_target,floor,go to that marker,target-A
+T12,approach_marked_target,floor,go to that marker,target-B
+T13,approach_marked_target,floor,go to that marker,target-A
+T14,approach_marked_target,floor,go to that marker,target-B
+T15,approach_marked_target,floor,go to that marker,target-A
+T16,approach_marked_target,floor,go to that marker,target-B
+T17,approach_marked_target,floor,go to that marker,target-A
+T18,approach_marked_target,floor,go to that marker,target-B
+T19,approach_marked_target,floor,go to that marker,target-A
+T20,approach_marked_target,floor,go to that marker,target-B
 T21,stop,floor,stop,moving robot
 T22,stop,floor,stop,moving robot
 T23,stop,floor,stop,moving robot

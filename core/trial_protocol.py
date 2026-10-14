@@ -19,17 +19,19 @@ class Trial:
 
 
 def build_plan() -> list[Trial]:
-    groups = (
-        (10, "approach_operator", "floor", "come to me", "operator"),
-        (10, "approach_marked_target", "floor", "go to that marker", "indicated marker"),
-        (10, "stop", "floor", "stop", "moving robot"),
-        (5, "greeting", "tabletop", "say hello", "none"),
-        (5, "greeting", "floor", "say hello", "none"),
-    )
     trials: list[Trial] = []
-    for count, scenario, placement, command, target in groups:
+
+    def add_group(count, scenario, placement, command, target):
         for _ in range(count):
             trials.append(Trial(f"T{len(trials) + 1:02d}", scenario, placement, command, target))
+
+    add_group(10, "approach_operator", "floor", "come to me", "operator")
+    for index in range(10):
+        target = "target-A" if index % 2 == 0 else "target-B"
+        add_group(1, "approach_marked_target", "floor", "go to that marker", target)
+    add_group(10, "stop", "floor", "stop", "moving robot")
+    add_group(5, "greeting", "tabletop", "say hello", "none")
+    add_group(5, "greeting", "floor", "say hello", "none")
     return trials
 
 

@@ -55,6 +55,7 @@ def summarise_trials(results_path: Path, events_path: Path) -> dict:
     stopping_times: list[float] = []
     greeting_times: list[float] = []
     sync_spreads: list[float] = []
+    target_selection_outcomes: list[bool] = []
     for row in results:
         trial_id = row.get("trial_id", "")
         events = events_by_trial.get(trial_id, [])
@@ -77,6 +78,8 @@ def summarise_trials(results_path: Path, events_path: Path) -> dict:
                 if isinstance(value, (int, float)):
                     greeting_times.append(float(value))
                 channels.setdefault("gesture", float(event["simulated_time_s"]))
+            elif command == "target_selection" and outcome in {"correct", "incorrect", "rejected"}:
+                target_selection_outcomes.append(outcome == "correct")
             elif command == "face_display" and outcome == "emotion_started":
                 channels.setdefault("face", float(event["simulated_time_s"]))
             elif command == "voice_output" and outcome == "started":
@@ -98,6 +101,13 @@ def summarise_trials(results_path: Path, events_path: Path) -> dict:
         "stopping_time": _describe(stopping_times),
         "greeting_response": _describe(greeting_times),
         "channel_start_spread": _describe(sync_spreads),
+        "target_selection": {
+            "unit": "pointing attempts",
+            "n": len(target_selection_outcomes),
+            "correct": sum(target_selection_outcomes),
+            "accuracy": round(sum(target_selection_outcomes) / len(target_selection_outcomes), 4)
+            if target_selection_outcomes else None,
+        },
     }
 
 

@@ -75,6 +75,7 @@ class TulparController:
             "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
         }
         self.latest_recognition = {}
+        self.last_selected_marker = None
         self.pointing_pose_ready_time = 0.0
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
             device.enable(TIME_STEP)
@@ -357,6 +358,7 @@ class TulparController:
                 self.latest_recognition[label] = (float(x), float(y))
 
     def pointed_marker_target(self):
+        self.last_selected_marker = None
         if self.robot.getTime() < self.pointing_pose_ready_time:
             self.log("go_to_marker", "rejected_vision", reason="waiting_for_next_camera_frame")
             self.say("Please hold your pointing pose while I check the camera.")
@@ -371,8 +373,15 @@ class TulparController:
         result = select_pointed_target(shoulder, fingertip, markers)
         if result.target is None:
             self.log("go_to_marker", "rejected_vision", reason=result.reason)
+            trial = self.trial_recorder.current
+            if trial and trial.scenario == "approach_marked_target":
+                self.log(
+                    "target_selection", "rejected", expected=trial.target,
+                    reason=result.reason,
+                )
             self.say("I cannot identify the pointed marker. Please point again.")
             return None
+        self.last_selected_marker = result.target
         marker_position = self.marker_nodes[result.target].getPosition()
         target_xy = (float(marker_position[0]), float(marker_position[1]))
         self.log(
@@ -475,6 +484,13 @@ class TulparController:
         elif value == "marker":
             target = self.pointed_marker_target()
             if target is not None:
+                trial = self.trial_recorder.current
+                if trial and trial.scenario == "approach_marked_target":
+                    correct = self.last_selected_marker == trial.target
+                    self.log(
+                        "target_selection", "correct" if correct else "incorrect",
+                        expected=trial.target, selected=self.last_selected_marker,
+                    )
                 self.begin_approach(target, "go_to_marker")
         elif value == "stop":
             self.stop()
@@ -530,10 +546,14 @@ class TulparController:
                 required_mode=trial.placement,
             )
             return
-        self.say(
-            f"Trial {trial.trial_id} started. Run: {trial.command}.",
-            utterance_type="trial_prompt",
-        )
+        instruction = f"Run: {trial.command}."
+        if trial.scenario == "approach_marked_target":
+            control_key = "3" if trial.target == "target-A" else "4"
+            instruction = (
+                f"Set the virtual pointing pose to {trial.target} with key {control_key}, "
+                f"then say: {trial.command}."
+            )
+        self.say(f"Trial {trial.trial_id} started. {instruction}", utterance_type="trial_prompt")
         self.log(
             "trial", "started", trial_id=trial.trial_id, scenario=trial.scenario,
             placement=trial.placement,

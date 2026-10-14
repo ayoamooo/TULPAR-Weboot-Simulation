@@ -52,6 +52,31 @@ class TrialAnalysisTests(unittest.TestCase):
             self.assertIsNone(summary["by_scenario"]["approach_operator"]["pass_rate"])
             self.assertIsNone(summary["channel_start_spread"])
 
+    def test_rejected_pointing_counts_as_an_unsuccessful_selection(self):
+        with tempfile.TemporaryDirectory(dir=Path(__file__).resolve().parents[1]) as directory:
+            root = Path(directory)
+            results = root / "results.csv"
+            with results.open("w", encoding="utf-8", newline="") as stream:
+                writer = csv.DictWriter(stream, fieldnames=[
+                    "trial_id", "scenario", "placement", "command", "target", "outcome",
+                    "started_sim_time_s", "finished_sim_time_s", "duration_s",
+                ])
+                writer.writeheader()
+                writer.writerow({
+                    "trial_id": "T11", "scenario": "approach_marked_target", "placement": "floor",
+                    "command": "go to that marker", "target": "target-A", "outcome": "fail",
+                    "started_sim_time_s": "0", "finished_sim_time_s": "2", "duration_s": "2",
+                })
+            events = root / "events.jsonl"
+            events.write_text(json.dumps({
+                "trial_id": "T11", "command": "target_selection", "outcome": "rejected",
+                "simulated_time_s": 1.0,
+            }) + "\n", encoding="utf-8")
+
+            summary = summarise_trials(results, events)
+            self.assertEqual(summary["target_selection"]["n"], 1)
+            self.assertEqual(summary["target_selection"]["accuracy"], 0.0)
+
 
 if __name__ == "__main__":
     unittest.main()
