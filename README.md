@@ -7,7 +7,7 @@ The first scene represents a controlled university demonstration room. It includ
 ## Intended behaviour
 
 - Floor mode: `come to me`, `go to marker`, and `stop` control the tracked base.
-- Tabletop mode: the tracks remain locked; speech, face states, and arm gestures remain available.
+- Tabletop mode: the tracks remain locked; speech, animated face expressions, and arm gestures remain available.
 - `say hello` runs a non-contact wave with the tracks stopped.
 - The controller records command, mode, outcome, and simulated timing in `logs/tulpar-events.jsonl`.
 

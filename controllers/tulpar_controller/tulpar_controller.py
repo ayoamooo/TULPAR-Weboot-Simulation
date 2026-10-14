@@ -23,6 +23,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from core.command_policy import allow_action, parse_spoken_command
 from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
+from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
 from core.pointing import ImagePoint, select_pointed_target
@@ -90,6 +91,7 @@ class TulparController:
         self.stop_detector = WheelStopDetector()
         self.pending_stop_time = None
         self.emotion = "neutral"
+        self.last_face_frame_time = -1.0
         self.wave_phase = 0.0
         self.event_file = Path(__file__).resolve().parents[2] / "logs" / "tulpar-events.jsonl"
         self.event_file.parent.mkdir(exist_ok=True)
@@ -211,41 +213,53 @@ class TulparController:
     def say(self, message):
         self.speaker.speak(message, 1.0)
 
-    def draw_face(self, emotion):
+    def draw_face(self, emotion, time_s=None):
         self.emotion = emotion
+        if time_s is None:
+            time_s = self.robot.getTime()
+        pose = eye_pose(emotion, time_s)
         canvas = self.face
         canvas.setColor(0x071724)
         canvas.fillRectangle(0, 0, 256, 320)
         eye_color = 0x9FF6FF
         mouth_color = 0x66CFE0
+        for x, openness in ((54, pose.left_open), (148, pose.right_open)):
+            eye_height = max(4, int(62 * openness))
+            eye_y = 112 - eye_height // 2
+            canvas.setColor(eye_color)
+            if openness < 0.14:
+                canvas.drawLine(x, 112, x + 54, 112)
+            else:
+                canvas.fillOval(x, eye_y, 54, eye_height)
+                pupil_x = x + 21 + int(8 * pose.pupil_x)
+                pupil_y = 112 + int(14 * pose.pupil_y)
+                pupil_size = max(7, min(15, int(14 * openness)))
+                canvas.setColor(0x06202C)
+                canvas.fillOval(pupil_x, pupil_y - pupil_size // 2, pupil_size, pupil_size)
         canvas.setColor(eye_color)
-        if emotion == "sleepy":
-            canvas.fillRectangle(54, 112, 54, 7)
-            canvas.fillRectangle(148, 112, 54, 7)
-        elif emotion == "wink":
-            canvas.fillRectangle(54, 112, 54, 7)
-            canvas.fillOval(148, 86, 54, 62)
-        elif emotion == "angry":
-            canvas.fillOval(54, 88, 54, 58)
-            canvas.fillOval(148, 88, 54, 58)
+        if emotion == "angry":
             canvas.drawLine(46, 76, 108, 96)
             canvas.drawLine(210, 76, 148, 96)
-        else:
-            canvas.fillOval(54, 86, 54, 62)
-            canvas.fillOval(148, 86, 54, 62)
         canvas.setColor(mouth_color)
         if emotion in ("happy", "love", "wink"):
             canvas.drawArc(78, 175, 100, 58, 10, 160)
         elif emotion == "sad":
             canvas.drawArc(78, 204, 100, 58, 190, 160)
         elif emotion == "surprised":
-            canvas.drawOval(109, 181, 38, 54)
+            mouth_height = 48 + int(6 * math.sin(time_s * 2.4))
+            canvas.drawOval(109, 181, 38, mouth_height)
         elif emotion == "thinking":
             canvas.fillRectangle(96, 206, 64, 7)
         else:
             canvas.fillRectangle(96, 205, 64, 7)
         canvas.setColor(0xD9F8FA)
         canvas.drawText(emotion.upper(), 12, 292)
+        self.last_face_frame_time = time_s
+
+    def update_face_animation(self):
+        now = self.robot.getTime()
+        if now - self.last_face_frame_time >= 0.12:
+            self.draw_face(self.emotion, now)
 
     def tracks(self, left, right):
         if self.mode != "floor" or self.emergency_stop:
@@ -473,6 +487,7 @@ class TulparController:
     def run(self):
         try:
             while self.robot.step(TIME_STEP) != -1:
+                self.update_face_animation()
                 self.refresh_recognition()
                 self.update_stop_measurement()
                 self.process_voice_io()
