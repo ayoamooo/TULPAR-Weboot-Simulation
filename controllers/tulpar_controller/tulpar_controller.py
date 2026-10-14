@@ -26,7 +26,7 @@ from core.dialogue import DialogueError, generate_local_dialogue, generate_local
 from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
-from core.pointing import ImagePoint, select_pointed_target
+from core.pointing import ImagePoint, select_pointed_target, update_selection_success
 from core.range_safety import RangeSafetyMonitor
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
@@ -394,8 +394,6 @@ class TulparController:
             self.log("go_to_marker", "rejected_vision", reason=result.reason)
             trial = self.trial_recorder.current
             if trial and trial.scenario == "approach_marked_target":
-                if self.trial_target_selection_correct is None:
-                    self.trial_target_selection_correct = False
                 self.log(
                     "target_selection", "rejected", expected=trial.target,
                     reason=result.reason,
@@ -519,8 +517,11 @@ class TulparController:
                 trial = self.trial_recorder.current
                 if trial and trial.scenario == "approach_marked_target":
                     correct = self.last_selected_marker == trial.target
-                    if self.trial_target_selection_correct is None:
-                        self.trial_target_selection_correct = correct
+                    self.trial_target_selection_correct = update_selection_success(
+                        self.trial_target_selection_correct,
+                        trial.target,
+                        self.last_selected_marker,
+                    )
                     self.log(
                         "target_selection", "correct" if correct else "incorrect",
                         expected=trial.target, selected=self.last_selected_marker,
