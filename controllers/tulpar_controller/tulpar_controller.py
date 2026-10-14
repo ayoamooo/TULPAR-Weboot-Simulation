@@ -210,20 +210,26 @@ class TulparController:
                     self.log("vision", "model_error", detail=vision_error)
 
     def log(self, command, outcome, **extra):
+        trial = getattr(self, "trial_recorder", None)
+        active_trial_id = trial.current.trial_id if trial and trial.current else None
         row = {
             "time_utc": datetime.now(timezone.utc).isoformat(),
             "simulated_time_s": round(self.robot.getTime(), 3),
             "command": command,
             "mode": self.mode,
             "outcome": outcome,
+            **({"trial_id": active_trial_id} if active_trial_id else {}),
             **extra,
         }
         with self.event_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
 
-    def say(self, message):
+    def say(self, message, utterance_type="response"):
         self.speaker.speak(message, 1.0)
-        self.log("voice_output", "started", response_char_count=len(message))
+        self.log(
+            "voice_output", "started", response_char_count=len(message),
+            utterance_type=utterance_type,
+        )
 
     def draw_face(self, emotion, time_s=None):
         self.emotion = emotion
@@ -461,7 +467,6 @@ class TulparController:
             self.wave_phase = 0.0
             self.action = None
             self.set_emotion("happy")
-            self.say("Hello.")
             self.log("greeting", "completed")
 
     def command(self, value):
@@ -482,6 +487,7 @@ class TulparController:
                 if self.command_received_at is not None else self.robot.getTime()
             )
             self.set_emotion("happy")
+            self.say("Hello.")
             self.log("greeting", "accepted")
         elif value == "mode":
             if self.trial_recorder.current is not None:
@@ -524,7 +530,10 @@ class TulparController:
                 required_mode=trial.placement,
             )
             return
-        self.say(f"Trial {trial.trial_id} started. Run: {trial.command}.")
+        self.say(
+            f"Trial {trial.trial_id} started. Run: {trial.command}.",
+            utterance_type="trial_prompt",
+        )
         self.log(
             "trial", "started", trial_id=trial.trial_id, scenario=trial.scenario,
             placement=trial.placement,
@@ -537,7 +546,10 @@ class TulparController:
             self.say("Start a trial before recording its result.")
             self.log("trial", "result_rejected_no_active_trial", requested_outcome=outcome)
             return
-        self.say(f"Trial {row['trial_id']} recorded as {outcome}.")
+        self.say(
+            f"Trial {row['trial_id']} recorded as {outcome}.",
+            utterance_type="trial_result",
+        )
         self.log(
             "trial", "result_recorded", trial_id=row["trial_id"], outcome=outcome,
             duration_s=float(row["duration_s"]),
