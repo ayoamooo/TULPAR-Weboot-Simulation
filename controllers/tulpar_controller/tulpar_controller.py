@@ -18,6 +18,7 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from core.command_policy import allow_action, parse_spoken_command
 from core.navigation import approach_command
+from core.pointing import ImagePoint, select_pointed_target
 from core.stop_measurement import WheelStopDetector
 
 
@@ -55,6 +56,16 @@ class TulparController:
         self.speaker = self.robot.getDevice("speaker")
         self.face = self.robot.getDevice("face display")
         self.camera = self.robot.getDevice("robot camera")
+        self.marker_nodes = {
+            "target-A": self.robot.getFromDef("MARKER_A"),
+            "target-B": self.robot.getFromDef("MARKER_B"),
+        }
+        self.pointing_nodes = {
+            "operator-shoulder": self.robot.getFromDef("OPERATOR_SHOULDER"),
+            "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
+        }
+        self.latest_recognition = {}
+        self.pointing_pose_ready_time = 0.0
         for device in (self.gps, self.imu, self.range_sensor, self.camera):
             device.enable(TIME_STEP)
         self.camera.recognitionEnable(1000)
@@ -188,6 +199,58 @@ class TulparController:
         self.say("I am coming.")
         self.log(label, "accepted", target=target)
 
+    def refresh_recognition(self):
+        """Snapshot recognized model labels and image centres from the camera."""
+        self.latest_recognition = {}
+        for item in self.camera.getRecognitionObjects():
+            label = item.getModel()
+            if label:
+                x, y = item.getPositionOnImage()
+                self.latest_recognition[label] = (float(x), float(y))
+
+    def pointed_marker_target(self):
+        if self.robot.getTime() < self.pointing_pose_ready_time:
+            self.log("go_to_marker", "rejected_vision", reason="waiting_for_next_camera_frame")
+            self.say("Please hold your pointing pose while I check the camera.")
+            return None
+        shoulder = self.latest_recognition.get("operator-shoulder")
+        fingertip = self.latest_recognition.get("operator-fingertip")
+        markers = [
+            ImagePoint(label, *self.latest_recognition[label])
+            for label in self.marker_nodes
+            if label in self.latest_recognition
+        ]
+        result = select_pointed_target(shoulder, fingertip, markers)
+        if result.target is None:
+            self.log("go_to_marker", "rejected_vision", reason=result.reason)
+            self.say("I cannot identify the pointed marker. Please point again.")
+            return None
+        marker_position = self.marker_nodes[result.target].getPosition()
+        target_xy = (float(marker_position[0]), float(marker_position[1]))
+        self.log(
+            "go_to_marker", "vision_target_selected", target=result.target,
+            pointing_error_deg=round(result.angular_error_deg or 0.0, 2),
+        )
+        return target_xy
+
+    def set_simulated_pointing_target(self, target_label):
+        """Reposition the virtual fingertip to create a repeatable pointing pose."""
+        marker = self.marker_nodes[target_label].getPosition()
+        shoulder = self.pointing_nodes["operator-shoulder"].getPosition()
+        dx, dy = marker[0] - shoulder[0], marker[1] - shoulder[1]
+        length = math.hypot(dx, dy)
+        if length <= 0.0:
+            return
+        extension = 0.55
+        fingertip = self.pointing_nodes["operator-fingertip"]
+        fingertip.getField("translation").setSFVec3f([
+            shoulder[0] + dx / length * extension,
+            shoulder[1] + dy / length * extension,
+            shoulder[2] + (marker[2] + 0.28 - shoulder[2]) * extension / length,
+        ])
+        self.pointing_pose_ready_time = self.robot.getTime() + 1.0
+        self.log("simulated_pointing_pose", "set", target=target_label)
+
     def update_approach(self):
         x, y, _ = self.gps.getValues()
         yaw = self.imu.getRollPitchYaw()[2]
@@ -225,7 +288,9 @@ class TulparController:
         if value == "operator":
             self.begin_approach((1.45, -1.10), "come_to_me")
         elif value == "marker":
-            self.begin_approach((1.35, 1.15), "go_to_marker")
+            target = self.pointed_marker_target()
+            if target is not None:
+                self.begin_approach(target, "go_to_marker")
         elif value == "stop":
             self.stop()
         elif value == "greet":
@@ -289,9 +354,14 @@ class TulparController:
         command = mapping.get(key)
         if command:
             self.command(command)
+        elif key == ord("3"):
+            self.set_simulated_pointing_target("target-A")
+        elif key == ord("4"):
+            self.set_simulated_pointing_target("target-B")
 
     def run(self):
         while self.robot.step(TIME_STEP) != -1:
+            self.refresh_recognition()
             self.update_stop_measurement()
             key = self.keyboard.getKey()
             if key != -1:
