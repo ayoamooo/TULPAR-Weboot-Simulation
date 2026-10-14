@@ -99,6 +99,7 @@ class TulparController:
         self.pending_greeting_response_start = None
         self.trial_scenario_success = False
         self.trial_target_selection_correct = None
+        self.approach_motion_started = False
         self.last_stop_reason = None
         self.last_stop_had_motion = False
         self.stop_detector = WheelStopDetector()
@@ -296,7 +297,7 @@ class TulparController:
             motor.setVelocity(right)
 
     def stop(self, reason="command"):
-        self.last_stop_had_motion = self.action == "approach"
+        self.last_stop_had_motion = self.approach_motion_started
         self.last_stop_reason = reason
         self.tracks(0.0, 0.0)
         self.action = None
@@ -307,6 +308,7 @@ class TulparController:
         )
         self.pending_movement_response_start = None
         self.pending_greeting_response_start = None
+        self.approach_motion_started = False
         self.stop_detector.stable_count = 0
         self.log("stop", "commanded", reason=reason)
         self.say("Stopped.")
@@ -356,6 +358,7 @@ class TulparController:
             return
         self.target = target
         self.action = "approach"
+        self.approach_motion_started = False
         self.pending_movement_response_start = (
             self.command_received_at
             if self.command_received_at is not None else self.robot.getTime()
@@ -466,6 +469,7 @@ class TulparController:
             self.action = None
             self.target = None
             self.pending_movement_response_start = None
+            self.approach_motion_started = False
             trial = self.trial_recorder.current
             if trial and trial.scenario == "approach_operator":
                 self.trial_scenario_success = True
@@ -476,6 +480,8 @@ class TulparController:
             self.log("approach", "arrived", distance=round(command.distance, 3))
             return
         self.tracks(command.left, command.right)
+        if command.left or command.right:
+            self.approach_motion_started = True
         if self.pending_movement_response_start is not None and (command.left or command.right):
             self.log(
                 "movement", "started",
@@ -586,6 +592,7 @@ class TulparController:
         self.tracks(0.0, 0.0)
         self.action = None
         self.target = None
+        self.approach_motion_started = False
         self.translation_field.setSFVec3f(FLOOR_START if self.mode == "floor" else TABLETOP_START)
         self.rotation_field.setSFRotation([0.0, 0.0, 1.0, 0.0])
         self.self_node.resetPhysics()
@@ -605,6 +612,7 @@ class TulparController:
         if trial.scenario == "stop":
             self.action = "approach"
             self.target = (1.45, -1.10)
+            self.approach_motion_started = False
             self.set_emotion("thinking")
             instruction = "I am moving toward the operator. Say stop while the tracks are moving."
         if trial.scenario == "approach_marked_target":
