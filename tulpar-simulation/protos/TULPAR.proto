@@ -26,12 +26,12 @@ Robot {
     Pose { translation 0 -0.17 0.050 children [ Shape { appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 } geometry Box { size 0.27 0.055 0.025 } } ] }
     Pose { translation 0 -0.17 -0.050 children [ Shape { appearance PBRAppearance { baseColor 0.035 0.045 0.055 roughness 0.92 } geometry Box { size 0.27 0.055 0.025 } } ] }
     # Track details are visual; four driven wheels provide the controlled drive path.
-    Shape {
+    Pose { translation 0 0 0.15 children [ Shape {
       appearance PBRAppearance { baseColor 0.63 0.72 0.78 roughness 0.48 metalness 0.12 }
-      geometry Box { size 0.25 0.20 0.29 }
-    }
+      geometry Box { size 0.25 0.20 0.26 }
+    } ] }
     Pose {
-      translation 0 0 0.25
+      translation 0 0 0.34
       children [
         Shape {
           appearance PBRAppearance { baseColor 0.84 0.90 0.93 roughness 0.45 metalness 0.05 }
@@ -40,11 +40,11 @@ Robot {
         # Smartphone frame and face panel.
         Pose {
           translation 0.121 0 0.035
-          rotation 0 1 0 1.5708
+          rotation 1 1 1 2.094395
           children [
             Shape {
               appearance PBRAppearance { baseColor 0.015 0.035 0.06 roughness 0.28 metalness 0.2 }
-              geometry Box { size 0.18 0.13 0.012 }
+              geometry Box { size 0.145 0.195 0.012 }
             }
             Pose {
               translation 0 0 0.008
@@ -59,7 +59,7 @@ Robot {
                         material Material { diffuseColor 0.06 0.42 0.56 emissiveColor 0.02 0.15 0.2 }
                         texture ImageTexture { url [ ] filtering 0 }
                       }
-                      geometry Box { size 0.18 0.13 0.002 }
+                      geometry Plane { size 0.13 0.18 }
                     }
                   ]
                 }
@@ -69,7 +69,7 @@ Robot {
         }
         # USB camera above the phone.
         Pose {
-          translation 0.135 0 0.25
+          translation 0.135 0 0.16
           rotation 0 1 0 1.5708
           children [
             Shape { appearance PBRAppearance { baseColor 0.10 0.12 0.14 roughness 0.45 } geometry Box { size 0.055 0.075 0.035 } }
@@ -78,11 +78,63 @@ Robot {
         }
       ]
     }
+
+    # Panel fasteners, grille, ranging module and track cleats.
+    Pose { translation 0.128 0 0.17 children [ Shape { appearance PBRAppearance { baseColor 0.07 0.14 0.19 roughness 0.5 metalness 0.2 } geometry Box { size 0.008 0.16 0.19 } } ] }
+    Pose { translation 0.134 0 0.225 children [ Shape { appearance PBRAppearance { baseColor 0.06 0.72 0.78 roughness 0.5 metalness 0.2 } geometry Box { size 0.006 0.13 0.009 } } ] }
+    Pose { translation 0.136 -0.058 0.12 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.058 0.14 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.058 0.16 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.035 0.12 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.035 0.14 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.035 0.16 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.012 0.12 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.012 0.14 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 -0.012 0.16 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.012 0.12 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.012 0.14 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.012 0.16 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.035 0.12 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.035 0.14 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.035 0.16 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.058 0.12 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.058 0.14 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.136 0.058 0.16 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.32 0.40 0.46 } geometry Cylinder { radius 0.004 height 0.004 subdivision 12 } } ] }
+    Pose { translation 0.139 -0.083 0.08 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.68 0.74 0.79 metalness 0.8 roughness 0.3 } geometry Cylinder { radius 0.005 height 0.004 subdivision 6 } } ] }
+    Pose { translation 0.139 -0.083 0.25 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.68 0.74 0.79 metalness 0.8 roughness 0.3 } geometry Cylinder { radius 0.005 height 0.004 subdivision 6 } } ] }
+    Pose { translation 0.139 0.083 0.08 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.68 0.74 0.79 metalness 0.8 roughness 0.3 } geometry Cylinder { radius 0.005 height 0.004 subdivision 6 } } ] }
+    Pose { translation 0.139 0.083 0.25 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.68 0.74 0.79 metalness 0.8 roughness 0.3 } geometry Cylinder { radius 0.005 height 0.004 subdivision 6 } } ] }
+    Pose { translation 0.17 0 0.22 children [ Shape { appearance PBRAppearance { baseColor 0.1 0.18 0.22 roughness 0.5 metalness 0.2 } geometry Box { size 0.05 0.09 0.026 } } ] }
+    Pose { translation 0.197 -0.025 0.22 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.2 0.7 0.8 metalness 0.5 } geometry Cylinder { radius 0.009 height 0.003 } } ] }
+    Pose { translation 0.197 0.025 0.22 rotation 0 1 0 1.570796 children [ Shape { appearance PBRAppearance { baseColor 0.2 0.7 0.8 metalness 0.5 } geometry Cylinder { radius 0.009 height 0.003 } } ] }
+    Pose { translation -0.12 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.096 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.07200000000000001 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.048 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.024 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.0 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.024 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.048 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.07200000000000001 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.096 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.12 -0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.12 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.096 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.07200000000000001 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.048 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation -0.024 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.0 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.024 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.048 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.07200000000000001 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.096 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
+    Pose { translation 0.12 0.17 .057 children [ Shape { appearance PBRAppearance { baseColor 0.09 0.12 0.14 roughness 0.5 metalness 0.2 } geometry Box { size .012 .061 .012 } } ] }
     # Two shoulder joints and fixed expressive claws.
     HingeJoint {
       jointParameters HingeJointParameters { axis 0 1 0 anchor 0 0.14 0.31 minStop -0.75 maxStop 0.75 }
       device [ RotationalMotor { name "left shoulder" maxTorque 2.5 maxVelocity 1.4 } PositionSensor { name "left shoulder sensor" } ]
       endPoint Solid {
+        name "joint part 1"
         translation 0 0.14 0.31
         children [
           Pose { translation 0.04 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.56 0.68 0.75 roughness 0.52 metalness 0.08 } geometry Box { size 0.17 0.055 0.055 } } ] }
@@ -101,6 +153,7 @@ Robot {
       jointParameters HingeJointParameters { axis 0 1 0 anchor 0 -0.14 0.31 minStop -0.75 maxStop 0.75 }
       device [ RotationalMotor { name "right shoulder" maxTorque 2.5 maxVelocity 1.4 } PositionSensor { name "right shoulder sensor" } ]
       endPoint Solid {
+        name "joint part 2"
         translation 0 -0.14 0.31
         children [
           Pose { translation 0.04 0 0 children [ Shape { appearance PBRAppearance { baseColor 0.56 0.68 0.75 roughness 0.52 metalness 0.08 } geometry Box { size 0.17 0.055 0.055 } } ] }
@@ -121,9 +174,15 @@ Robot {
       jointParameters HingeJointParameters { axis 0 1 0 anchor 0.13 0.17 0.0 }
       device [ RotationalMotor { name "left front track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "left front track sensor" } ]
       endPoint Solid {
+        name "joint part 3"
         translation 0.13 0.17 0.0
+        rotation 1 0 0 1.570796
         contactMaterial "track"
-        children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
+        children [
+          Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 subdivision 32 } }
+          Shape { appearance PBRAppearance { baseColor 0.35 0.43 0.49 metalness 0.7 roughness 0.4 } geometry Cylinder { radius 0.041 height 0.058 subdivision 24 } }
+          Shape { appearance PBRAppearance { baseColor 0.06 0.7 0.76 metalness 0.3 roughness 0.4 } geometry Box { size 0.065 0.012 0.06 } }
+        ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
       }
@@ -132,9 +191,15 @@ Robot {
       jointParameters HingeJointParameters { axis 0 1 0 anchor -0.13 0.17 0.0 }
       device [ RotationalMotor { name "left rear track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "left rear track sensor" } ]
       endPoint Solid {
+        name "joint part 4"
         translation -0.13 0.17 0.0
+        rotation 1 0 0 1.570796
         contactMaterial "track"
-        children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
+        children [
+          Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 subdivision 32 } }
+          Shape { appearance PBRAppearance { baseColor 0.35 0.43 0.49 metalness 0.7 roughness 0.4 } geometry Cylinder { radius 0.041 height 0.058 subdivision 24 } }
+          Shape { appearance PBRAppearance { baseColor 0.06 0.7 0.76 metalness 0.3 roughness 0.4 } geometry Box { size 0.065 0.012 0.06 } }
+        ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
       }
@@ -143,9 +208,15 @@ Robot {
       jointParameters HingeJointParameters { axis 0 1 0 anchor 0.13 -0.17 0.0 }
       device [ RotationalMotor { name "right front track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "right front track sensor" } ]
       endPoint Solid {
+        name "joint part 5"
         translation 0.13 -0.17 0.0
+        rotation 1 0 0 1.570796
         contactMaterial "track"
-        children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
+        children [
+          Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 subdivision 32 } }
+          Shape { appearance PBRAppearance { baseColor 0.35 0.43 0.49 metalness 0.7 roughness 0.4 } geometry Cylinder { radius 0.041 height 0.058 subdivision 24 } }
+          Shape { appearance PBRAppearance { baseColor 0.06 0.7 0.76 metalness 0.3 roughness 0.4 } geometry Box { size 0.065 0.012 0.06 } }
+        ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
       }
@@ -154,15 +225,23 @@ Robot {
       jointParameters HingeJointParameters { axis 0 1 0 anchor -0.13 -0.17 0.0 }
       device [ RotationalMotor { name "right rear track motor" maxVelocity 7 maxTorque 12 } PositionSensor { name "right rear track sensor" } ]
       endPoint Solid {
+        name "joint part 6"
         translation -0.13 -0.17 0.0
+        rotation 1 0 0 1.570796
         contactMaterial "track"
-        children [ Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 } } ]
+        children [
+          Shape { appearance PBRAppearance { baseColor 0.04 0.05 0.06 roughness 0.9 } geometry Cylinder { radius 0.07 height 0.055 subdivision 32 } }
+          Shape { appearance PBRAppearance { baseColor 0.35 0.43 0.49 metalness 0.7 roughness 0.4 } geometry Cylinder { radius 0.041 height 0.058 subdivision 24 } }
+          Shape { appearance PBRAppearance { baseColor 0.06 0.7 0.76 metalness 0.3 roughness 0.4 } geometry Box { size 0.065 0.012 0.06 } }
+        ]
         boundingObject Cylinder { radius 0.07 height 0.055 }
         physics Physics { density -1 mass 0.18 }
       }
     }
-    Camera { translation 0.15 0 0.50 rotation 0 1 0 -1.5708 name "robot camera" width 640 height 480 fieldOfView 1.15 recognition Recognition { } }
-    DistanceSensor { translation 0.205 0 0.22 rotation 0 1 0 -1.5708 name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1.5 0 ] aperture 0.28 }
+    # Camera and distance-sensor forward axes are +X in Webots' ENU/FLU
+    # convention, so leave both aligned with the robot's forward direction.
+    Camera { translation 0.15 0 0.50 name "robot camera" width 640 height 480 fieldOfView 1.95 recognition Recognition { } }
+    DistanceSensor { translation 0.205 0 0.22 name "front range sensor" type "sonar" lookupTable [ 0 0 0, 1.5 1.5 0 ] aperture 0.28 }
     Speaker { name "speaker" }
     GPS { name "gps" }
     InertialUnit { name "imu" }

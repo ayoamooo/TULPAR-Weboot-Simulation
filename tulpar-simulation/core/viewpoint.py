@@ -25,13 +25,14 @@ def look_at_orientation(
 
     right = _normalise(_cross(forward, up), "could not derive camera right axis")
     camera_up = _normalise(_cross(tuple(-v for v in forward), right), "could not derive camera up axis")
-    backward = tuple(-v for v in forward)
+    left = tuple(-v for v in right)
 
-    # The columns are the world-space camera X, Y, and Z axes.
+    # Webots R2025a uses FLU: +X looks forward, +Y left, +Z up.
+    # This applies to Viewpoint as well as Camera nodes.
     matrix = (
-        (right[0], camera_up[0], backward[0]),
-        (right[1], camera_up[1], backward[1]),
-        (right[2], camera_up[2], backward[2]),
+        (forward[0], left[0], camera_up[0]),
+        (forward[1], left[1], camera_up[1]),
+        (forward[2], left[2], camera_up[2]),
     )
     quaternion = _quaternion_from_matrix(matrix)
     if quaternion[3] < 0.0:

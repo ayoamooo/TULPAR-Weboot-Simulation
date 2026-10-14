@@ -1,5 +1,9 @@
 # TULPAR virtual demonstration
 
+For the automatic external 3D presentation, run **START-TULPAR.cmd** or open
+**worlds/tulpar_showcase.wbt**. Press **B** to replay, **C** to change the viewpoint,
+to replay the walkthrough. See [the walkthrough guide](docs/showcase.md).
+
 This folder contains the new Webots simulation source for the TULPAR research prototype. It is separate from the report and its drawings.
 
 The first scene represents a controlled university demonstration room. It includes a floor route, carpet test area, tabletop support, operator figure, two marked targets, and a 0.6 m tracked robot based on the assembly concept.
@@ -29,7 +33,7 @@ Keys:
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
 - `E` — simulated emergency stop.
 - `F` — toggle an invalid-range-sensor fault for the retry/stop check.
-- `C` — cycle the overview, overhead, and robot-following scene views.
+- `C` — cycle the side-on test view, room overview, overhead, and robot-following views.
 - `5` — start the next planned technical trial (requires the listed placement mode).
 - `6` / `7` — record the active trial as pass / fail after checking its stated outcome.
 
@@ -48,3 +52,5 @@ The controller writes completed outcomes to `logs/technical-trial-results.csv`. 
 For the full setup and per-trial procedure, see [`docs/simulation-runbook.md`](docs/simulation-runbook.md). Marking a trial as failed now cancels the current movement or wave before the result is saved.
 
 The controller event log tags scenario events with the active trial ID. The marker-selection block alternates the expected target evenly between target A and target B; the trial prompt tells you which simulated pointing-pose key to use. After running trials, `python -m core.trial_analysis` prints counts, observed pass rates, target-selection accuracy, response-time summaries, and channel-start spreads from those files. Empty or unmeasured quantities stay unavailable; the analysis does not invent values. The greeting voice now starts with the face response, just before the first simulated arm movement.
+
+![Webots preview of TULPAR greeting in tabletop mode](docs/assets/tulpar-walkthrough-preview.png)

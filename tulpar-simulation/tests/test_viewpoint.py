@@ -5,16 +5,24 @@ from core.viewpoint import look_at_orientation, rotate_vector
 
 
 class ViewpointTests(unittest.TestCase):
+    def test_webots_flu_identity_view_looks_along_positive_x_with_z_up(self):
+        rotation = look_at_orientation((-2, 0, 1), (0, 0, 1))
+        for actual, expected in zip(rotate_vector((1, 0, 0), rotation), (1, 0, 0)):
+            self.assertAlmostEqual(actual, expected)
+        for actual, expected in zip(rotate_vector((0, 0, 1), rotation), (0, 0, 1)):
+            self.assertAlmostEqual(actual, expected)
+
     def assert_camera_faces(self, position, target, up_hint=(0.0, 0.0, 1.0)):
         rotation = look_at_orientation(position, target, up_hint)
-        forward = rotate_vector((0.0, 0.0, -1.0), rotation)
+        forward = rotate_vector((1.0, 0.0, 0.0), rotation)
         expected = tuple(target[i] - position[i] for i in range(3))
         length = math.sqrt(sum(value * value for value in expected))
         expected = tuple(value / length for value in expected)
         self.assertAlmostEqual(sum(a * b for a, b in zip(forward, expected)), 1.0, places=6)
         self.assertAlmostEqual(math.sqrt(sum(value * value for value in rotation[:3])), 1.0, places=6)
 
-    def test_overview_and_robot_views_face_their_targets(self):
+    def test_side_overview_and_robot_views_face_their_targets(self):
+        self.assert_camera_faces((0.0, -8.0, 2.0), (-0.1, 0.0, 0.70))
         self.assert_camera_faces((4.5, -6.2, 4.1), (0.0, 0.0, 0.55))
         self.assert_camera_faces((-2.85, -2.65, 1.12), (-1.7, -1.1, 0.37))
 
