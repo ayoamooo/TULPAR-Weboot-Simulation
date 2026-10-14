@@ -22,6 +22,7 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from core.command_policy import allow_action, parse_spoken_command
+from core.diagnostics import format_status_event
 from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
 from core.face_animation import eye_pose
 from core.microphone import VoskMicrophone
@@ -232,6 +233,7 @@ class TulparController:
         }
         with self.event_file.open("a", encoding="utf-8") as stream:
             stream.write(json.dumps(row) + "\n")
+        print(format_status_event(row), flush=True)
 
     def say(self, message, utterance_type="response"):
         self.speaker.speak(message, 1.0)
