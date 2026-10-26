@@ -6,3 +6,9 @@ logs/
 outputs/
 .webots/
 worlds/.*.wbproj
+
+# Local audio archives and generated capture worlds
+research/audio_eval/data/
+research/audio_eval/.venv/
+research/audio_eval/_deps/
+worlds/tulpar_demo_capture.wbt
