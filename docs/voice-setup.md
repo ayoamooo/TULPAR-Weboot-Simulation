@@ -18,7 +18,9 @@ Voice is the primary interaction path and runs locally once configured. No audio
 
 For the Windows launcher, copy `START-TULPAR.local.example.cmd` to
 `START-TULPAR.local.cmd` and edit the Vosk model path and selected dialogue backend.
-The local file is ignored by Git. `START-TULPAR.cmd` reads it before opening the
+The example points to `voice-models/vosk-model-small-en-us-0.15` inside the project;
+unzip the matching Vosk model there, or edit the path. The local file is ignored by Git.
+`START-TULPAR.cmd` reads it before opening the
 interactive `tulpar_demo.wbt` world. Use `START-TULPAR-SHOWCASE.cmd` for the separate
 automatic visual presentation.
 

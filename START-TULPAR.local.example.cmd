@@ -1,7 +1,7 @@
 @echo off
 rem Copy this file to START-TULPAR.local.cmd and edit the local paths/model name.
 rem The local copy is ignored by Git and is read by START-TULPAR.cmd.
-set "TULPAR_VOSK_MODEL=C:\path\to\vosk-model-small-en-us-0.15"
+set "TULPAR_VOSK_MODEL=%~dp0voice-models\vosk-model-small-en-us-0.15"
 set "TULPAR_LLM_BACKEND=ollama"
 set "TULPAR_OLLAMA_MODEL=qwen3:4b"
 rem For llama.cpp, use these instead and keep the local llama-server running:
