@@ -29,14 +29,20 @@ class WorldPhysicsTests(unittest.TestCase):
     def test_carpet_patch_is_a_thin_surface_not_a_raised_block(self):
         world = (ROOT / "worlds" / "tulpar_demo.wbt").read_text(encoding="utf-8")
         match = re.search(
-            r'translation -1\.2 1\.35 (?P<height>[0-9.]+).*?name "carpet test patch"(?P<body>.*?)boundingObject Box',
+            r'Solid\s*\{(?P<body>.*?)name "carpet test patch"(?P<after_name>.*?)\n\}',
             world,
             re.DOTALL,
         )
         self.assertIsNotNone(match)
-        self.assertEqual(float(match.group("height")), 0.001)
         body = match.group("body")
+        after_name = match.group("after_name")
+        height = re.search(r"translation -1\.2 1\.35 ([0-9.]+)", body)
+        self.assertIsNotNone(height)
+        self.assertEqual(float(height.group(1)), 0.001)
+        self.assertIn("geometry Box", body)
         self.assertIn("size 2.4 1.55 0.002", body)
+        self.assertIn("boundingObject Box", after_name)
+        self.assertIn("size 2.4 1.55 0.002", after_name)
 
 
 if __name__ == "__main__":

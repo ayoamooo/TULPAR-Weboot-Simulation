@@ -34,4 +34,4 @@ If `TULPAR_VOSK_MODEL` is unset or points to a missing directory, the microphone
 
 ## Evidence limits
 
-The Python unit tests verify transcript-policy separation, local image request construction, and model-response validation. They do not measure microphone recognition accuracy, visual-description quality, model answer quality, spoken response latency, or Webots audio output. Those require a working audio device, configured Vosk model, local Ollama service, and an installed Webots runtime. Record such results only after running those components together.
+The Python unit tests verify transcript-policy separation, local image request construction, and model-response validation. A separate, single-run local smoke check is documented in [local-model-smoke-check.md](local-model-smoke-check.md). It confirms local model responses but records long cold-start delays, and it is not a comparative benchmark or a measurement of live robot performance. Microphone recognition accuracy, repeated visual-description quality, spoken response latency, audio output, and synchronisation still require testing with the microphone, Vosk, Ollama, and Webots running together.

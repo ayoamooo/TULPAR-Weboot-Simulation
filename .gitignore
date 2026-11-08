@@ -6,3 +6,6 @@ logs/
 outputs/
 .webots/
 worlds/.*.wbproj
+research/audio_eval/data/
+research/audio_eval/.venv/
+research/audio_eval/_deps/

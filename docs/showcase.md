@@ -1,7 +1,7 @@
 # TULPAR 3D walkthrough
 
 Open `worlds/tulpar_showcase.wbt` in Webots R2025a, or run `START-TULPAR.cmd`.
-The scene starts its walkthrough and records `outputs/TULPAR-walkthrough.mp4` automatically. Each fresh launch overwrites this preview. Click in the 3D view before using keys. Reload the world to replay if keyboard input is unavailable.
+The scene starts its walkthrough automatically and records `outputs/TULPAR-walkthrough.mp4` plus Webots' interactive animation at `outputs/TULPAR-walkthrough-interactive.html`. The HTML animation depends on its CSS, W3D, and JSON companion files in the same folder. The MP4 is written to a temporary file and replaces the previous video only after encoding completes successfully. The current MP4 has a black interval and needs repair before presentation. Click in the 3D view before using keys. Reload the world to replay if keyboard input is unavailable.
 
 | Key | Action |
 | --- | --- |
@@ -14,7 +14,7 @@ The scene starts its walkthrough and records `outputs/TULPAR-walkthrough.mp4` au
 | G | Non-contact greeting wave |
 | T | Change floor / tabletop placement between trials |
 
-The walkthrough demonstrates the four scenarios in `TULPAR (3).docx`: operator approach, indicated marked-target approach, stopping during motion, and greeting. Greeting is shown on the floor and the tabletop with the tracks stopped. Additional surprised, sad and happy expressions are a visual preview, not extra trial results. Object delivery and physical contact are excluded.
+The walkthrough demonstrates the four planned command scenarios: operator approach, indicated marked-target approach, stopping during motion, and greeting. Greeting is shown on the floor and the tabletop with the tracks stopped. A separate visual preview shows the supported neutral, happy, sad, surprised, angry, sleepy, wink, love, and thinking expressions together with the corresponding arm pose. These preview expressions are not extra trial results. Object delivery and physical contact are excluded.
 
 The room has a 0.5 m reference grid, a carpet patch, separate tabletop support, an operator figure and two coloured target fixtures. The model retains the reference design's tracked base, rectangular panelled body, smartphone face, webcam, paired arms and fixed claws. Added grille, panel fasteners, range-sensor housing, wheel hubs and tread cleats are conceptual details, not a fabrication specification.
 
@@ -22,8 +22,8 @@ Commands in the automatic walkthrough are scripted text passed through the comma
 
 The controller records a range-based stand-off as `front_sensor_to_surface`. A navigation fallback is explicitly logged as `simulator_centre_distance`; these are different distance definitions and must not be combined as measurements. Simulated sensor readings and timings do not establish hardware stopping performance.
 
-The walkthrough does not populate the 40-trial results CSV. The existing trial controls remain separate. Geometry, friction, masses and joint limits remain simulation assumptions requiring hardware validation.
+The walkthrough does not populate the 40-trial results CSV. The existing trial controls remain separate. Geometry, friction, masses and joint limits remain simulation assumptions requiring hardware validation. The latest run observations and video status are recorded in [showcase-run.md](showcase-run.md).
 
 Scene snapshots are written to `logs/showcase`. Rendering needs to be enabled. Close camera/display overlays if they obscure the scene; the face is also mapped onto the robot's actual phone surface. Use the Webots speaker control to enable sound.
 
-The automatic walkthrough also records an MP4 at `outputs/TULPAR-walkthrough.mp4` on launch. Generated videos and simulation logs are excluded from Git; the video remains on the computer that ran Webots. The committed preview image above is included for quick viewing on GitHub.
+Generated videos, interactive animation exports, and simulation logs are excluded from Git; they remain on the computer that ran Webots. The committed preview image above is included for quick viewing on GitHub. A batch-mode run may complete without rendering a usable movie; check the video file and the `showcase_video` / `showcase_animation` events before treating a new export as valid. Webots notes that local-file CORS restrictions in a browser can prevent an exported animation from loading; its web-animation guide describes the export files and playback options.

@@ -1,0 +1,131 @@
+{
+  "purpose": "Model selection comparison on validation splits only; test split not scored or used for selection.",
+  "feature_method": "13 MFCCs represented by utterance mean and standard deviation (26 features).",
+  "datasets": {
+    "speech_commands_v0.02": {
+      "train_examples": 85511,
+      "validation_examples": 10102,
+      "labels": [
+        "down",
+        "go",
+        "left",
+        "no",
+        "off",
+        "on",
+        "right",
+        "stop",
+        "up",
+        "yes",
+        "_silence_",
+        "_unknown_"
+      ],
+      "models": {
+        "LinearSVC_balanced_C1": {
+          "validation_accuracy": 0.5117798455751337,
+          "validation_macro_f1_all_classes": 0.36428421330368904,
+          "validation_uar_present_classes": 0.4477709446199487,
+          "validation_examples": 10102,
+          "fit_seconds_cpu": 5.472
+        },
+        "LogisticRegression_balanced_C1": {
+          "validation_accuracy": 0.28766580875074244,
+          "validation_macro_f1_all_classes": 0.3403904673678755,
+          "validation_uar_present_classes": 0.5033282246145657,
+          "validation_examples": 10102,
+          "fit_seconds_cpu": 4.457
+        },
+        "HistGradientBoosting_100iter": {
+          "validation_accuracy": 0.6688774500098991,
+          "validation_macro_f1_all_classes": 0.3691461320861133,
+          "validation_uar_present_classes": 0.3277142672802005,
+          "validation_examples": 10102,
+          "fit_seconds_cpu": 24.559
+        }
+      }
+    },
+    "ravdess_speech_only": {
+      "train_examples": 960,
+      "validation_examples": 240,
+      "actors": {
+        "train": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16
+        ],
+        "validation": [
+          17,
+          18,
+          19,
+          20
+        ],
+        "test": [
+          21,
+          22,
+          23,
+          24
+        ]
+      },
+      "labels": [
+        "neutral",
+        "calm",
+        "happy",
+        "sad",
+        "angry",
+        "fearful",
+        "disgust",
+        "surprised"
+      ],
+      "models": {
+        "LinearSVC_balanced_C1": {
+          "validation_accuracy": 0.35833333333333334,
+          "validation_macro_f1_all_classes": 0.3304325728523989,
+          "validation_uar_present_classes": 0.35546875,
+          "validation_examples": 240,
+          "fit_seconds_cpu": 0.047
+        },
+        "LogisticRegression_balanced_C1": {
+          "validation_accuracy": 0.35,
+          "validation_macro_f1_all_classes": 0.33344772069502804,
+          "validation_uar_present_classes": 0.35546875,
+          "validation_examples": 240,
+          "fit_seconds_cpu": 0.105
+        },
+        "SVC_RBF_C1": {
+          "validation_accuracy": 0.3875,
+          "validation_macro_f1_all_classes": 0.3823626946300085,
+          "validation_uar_present_classes": 0.3984375,
+          "validation_examples": 240,
+          "fit_seconds_cpu": 0.157
+        },
+        "ExtraTrees_300": {
+          "validation_accuracy": 0.32916666666666666,
+          "validation_macro_f1_all_classes": 0.32408292049489906,
+          "validation_uar_present_classes": 0.33984375,
+          "validation_examples": 240,
+          "fit_seconds_cpu": 0.977
+        },
+        "HistGradientBoosting_100iter": {
+          "validation_accuracy": 0.3375,
+          "validation_macro_f1_all_classes": 0.33241557180861164,
+          "validation_uar_present_classes": 0.34375,
+          "validation_examples": 240,
+          "fit_seconds_cpu": 10.944
+        }
+      }
+    }
+  },
+  "warning": "Validation scores are exploratory model-selection evidence, not final test results or TULPAR performance. Any selected frozen model would require a separately documented final evaluation; the existing pilot test scores remain unchanged."
+}

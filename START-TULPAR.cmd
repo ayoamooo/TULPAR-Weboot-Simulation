@@ -1,8 +1,10 @@
 @echo off
-set "TULPAR_WEBOTS=C:\Program Files\Webots\msys64\mingw64\bin\webots.exe"
+set "WEBOTS_HOME=C:\Program Files\Webots"
+set "TULPAR_WEBOTS=%WEBOTS_HOME%\msys64\mingw64\bin\webotsw.exe"
+if not exist "%TULPAR_WEBOTS%" set "TULPAR_WEBOTS=%WEBOTS_HOME%\msys64\mingw64\bin\webots.exe"
 if not exist "%TULPAR_WEBOTS%" (
-  echo Webots was not found at the configured path.
+  echo Webots was not found under "%WEBOTS_HOME%".
   pause
   exit /b 1
 )
-start "" "%TULPAR_WEBOTS%" --mode=realtime "%~dp0worlds\tulpar_showcase.wbt"
+start "" /D "%WEBOTS_HOME%" "%TULPAR_WEBOTS%" --mode=realtime "%~dp0worlds\tulpar_showcase.wbt"

@@ -1,8 +1,10 @@
 # TULPAR virtual demonstration
 
 For the automatic external 3D presentation, run **START-TULPAR.cmd** or open
-**worlds/tulpar_showcase.wbt**. Press **B** to replay, **C** to change the viewpoint,
-to replay the walkthrough. See [the walkthrough guide](docs/showcase.md).
+**worlds/tulpar_showcase.wbt**. Press **B** to replay and **C** to change the viewpoint.
+See [the walkthrough guide](docs/showcase.md).
+
+The real-time run exported a silent MP4 and a Webots interactive 3D animation under `outputs/`. The current MP4 has a black interval and is not ready for presentation. Open `outputs/TULPAR-walkthrough-interactive.html` with its CSS, W3D, and JSON companion files kept beside it. The run evidence and export sizes are recorded in [the walkthrough run record](docs/showcase-run.md).
 
 This folder contains the new Webots simulation source for the TULPAR research prototype. It is separate from the report and its drawings.
 
@@ -29,8 +31,8 @@ Keys:
 - `3` / `4` — set the simulated operator fingertip pose towards marker A / B; then press `2` to test camera-based selection.
 - `S` — stop.
 - `G` — greeting wave.
-- `T` — switch between floor and tabletop modes.
 - `H`, `A`, `D`, `P`, `Y`, `W`, `O`, `I`, `N` — happy, angry, sad, surprised, sleepy, wink, love, thinking, neutral.
+- `T` — switch between floor and tabletop modes.
 - `E` — simulated emergency stop.
 - `F` — toggle an invalid-range-sensor fault for the retry/stop check.
 - `C` — cycle the side-on test view, room overview, overhead, and robot-following views.
