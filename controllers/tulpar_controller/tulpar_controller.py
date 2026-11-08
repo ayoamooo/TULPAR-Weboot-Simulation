@@ -173,6 +173,8 @@ class TulparController:
         self.say(
             "TULPAR is ready. Please speak."
             if self.voice_input_active
+            else "Voice input could not start. Please check the local voice setup."
+            if model_path
             else "Voice input is not configured. Please check the local voice setup."
         )
         self.log("startup", "ready")

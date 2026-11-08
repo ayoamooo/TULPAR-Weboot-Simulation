@@ -18,6 +18,8 @@ class VoskMicrophone:
         self._stop = Event()
         self._audio = Queue(maxsize=32)
         self._thread = None
+        self._ready = Event()
+        self._startup_error = None
 
     def start(self):
         if not self.model_path.is_dir():
@@ -25,8 +27,16 @@ class VoskMicrophone:
         if self._thread and self._thread.is_alive():
             return
         self._stop.clear()
+        self._ready.clear()
+        self._startup_error = None
         self._thread = Thread(target=self._listen, name="tulpar-microphone", daemon=True)
         self._thread.start()
+        if not self._ready.wait(timeout=30.0):
+            self._stop.set()
+            self._thread.join(timeout=1.0)
+            raise RuntimeError("Microphone startup timed out before audio capture became ready.")
+        if self._startup_error:
+            raise RuntimeError(self._startup_error)
 
     def stop(self):
         self._stop.set()
@@ -61,6 +71,7 @@ class VoskMicrophone:
                 channels=1,
                 callback=self._audio_callback,
             ):
+                self._ready.set()
                 while not self._stop.is_set():
                     try:
                         block = self._audio.get(timeout=0.2)
@@ -81,4 +92,8 @@ class VoskMicrophone:
                             recognizer.Reset()
         except Exception as error:
             if not self._stop.is_set():
-                self.on_error(f"Microphone input stopped: {error}")
+                if not self._ready.is_set():
+                    self._startup_error = f"Microphone input could not start: {error}"
+                    self._ready.set()
+                else:
+                    self.on_error(f"Microphone input stopped: {error}")
