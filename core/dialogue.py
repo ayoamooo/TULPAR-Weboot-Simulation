@@ -7,8 +7,8 @@ import os
 import re
 from urllib.request import Request, urlopen
 
-from core.command_policy import explicit_navigation_target
-from core.scene_targets import SCENE_TARGETS, target_prompt_lines
+from core.command_policy import explicit_navigation_target, is_scene_navigation_request
+from core.scene_targets import SCENE_TARGETS
 
 
 ALLOWED_EMOTIONS = frozenset(
@@ -59,6 +59,34 @@ class DialogueError(RuntimeError):
 
 class InvalidTargetProposal(DialogueError):
     """Raised when the model proposes a target outside the registered scene."""
+
+
+def explicit_navigation_interaction(transcript: str) -> InteractionResponse | None:
+    """Resolve a clear named-object movement command without asking an LLM."""
+    target_id = explicit_navigation_target(transcript)
+    if target_id is None:
+        return None
+    target = SCENE_TARGETS[target_id]
+    return InteractionResponse(
+        f"Okay, I will move to the {target['spoken_name']} now.",
+        "thinking",
+        "move_to_object",
+        target_id,
+    )
+
+
+def scene_navigation_interaction(transcript: str) -> InteractionResponse | None:
+    """Return a safe direct action or clarification for movement requests."""
+    if not is_scene_navigation_request(transcript):
+        return None
+    if navigation := explicit_navigation_interaction(transcript):
+        return navigation
+    return InteractionResponse(
+        "Which object do you mean? Please name a visible marker, the bench, or the potted plant.",
+        "thinking",
+        "conversation",
+        None,
+    )
 
 
 def parse_dialogue_response(value: str | dict) -> DialogueResponse:
@@ -172,35 +200,15 @@ def enforce_spoken_navigation_intent(
 ) -> InteractionResponse:
     """Require the model's movement proposal to match an explicit spoken target."""
     spoken_target = explicit_navigation_target(transcript)
+    if spoken_target is not None:
+        # Speech parsing is deterministic and narrow; do not let a language
+        # model mislabel a clear spoken target or turn it into a refusal.
+        return explicit_navigation_interaction(transcript)
     if result.action == "move_to_object":
-        if spoken_target is None:
-            return InteractionResponse(
-                "I can talk, greet you, or approach a visible marker, bench, or potted plant. "
-                "Which would you like?",
-                result.emotion,
-                "conversation",
-                None,
-            )
-        if result.target_id != spoken_target:
-            return InteractionResponse(
-                "I heard a request to move, but could not match it to a named scene object. "
-                "Please repeat the object name.",
-                "thinking",
-                "conversation",
-                None,
-            )
-        spoken_name = SCENE_TARGETS[result.target_id]["spoken_name"]
         return InteractionResponse(
-            f"Okay, I will move to the {spoken_name} now.",
+            "I can talk, greet you, or approach a visible marker, bench, or potted plant. "
+            "Which would you like?",
             result.emotion,
-            result.action,
-            result.target_id,
-        )
-    elif spoken_target is not None:
-        return InteractionResponse(
-            "I heard a request to move to a marker, but could not confirm it. "
-            "Please repeat the request.",
-            "thinking",
             "conversation",
             None,
         )
@@ -217,26 +225,21 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
     if not text:
         raise DialogueError("No recognised speech was provided.")
 
+    # Direct, explicit movement commands are deterministic and safety-gated by
+    # the controller. This avoids adding model latency or target-classification
+    # errors to the robot's most concrete voice command.
+    if navigation := scene_navigation_interaction(text):
+        return navigation
+
     backend = os.environ.get("TULPAR_LLM_BACKEND", "ollama").strip().lower()
-    targets = target_prompt_lines()
-    target_context = (
-        "You are operating a software-only Webots simulation; never claim to have acted "
-        f"in the physical world. The registered scene targets are: {targets}. Set action to move_to_object only when "
-        "the user clearly asks TULPAR to go, drive, walk, move, or approach one of "
-        "these objects. Include that exact target id. If the object is not named or "
-        "the request is ambiguous, use conversation and ask a short clarifying question. "
-        "Never infer or invent another target. This field is an intent proposal, not a "
-        "motor command. TULPAR can converse, speak aloud, show one of its supported facial "
-        "emotions, gesture with its arms, and move to a registered scene target "
-        "when safety checks permit. It cannot pick up objects, touch people, or perform "
-        "unimplemented actions. For all other utterances use conversation and target_id null."
-    )
     system_prompt = (
         "You are TULPAR, a concise English-speaking virtual robot in a supervised "
-        "interactive simulation. Reply naturally in one or two short plain-English "
-        "sentences suitable for speech. Choose a permitted facial emotion that fits. "
-        "Do not use emoji, markdown, tools, coordinates, or actuator instructions. "
-        f"{target_context}"
+        "interactive simulation. Reply naturally to the user's conversational message "
+        "in one or two short plain-English sentences suitable for speech. Choose a "
+        "permitted facial emotion that fits. Do not use emoji, markdown, tools, "
+        "coordinates, or actuator instructions. Treat movement requests as unsupported "
+        "here; clear requests to named scene objects are handled by a separate local "
+        "command parser. Never claim to have acted in the physical world."
     )
     messages = [{"role": "system", "content": system_prompt}]
     for role, content in tuple(history)[-8:]:
@@ -252,7 +255,7 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
             "stream": False,
             "response_format": {
                 "type": "json_schema",
-                "json_schema": {"name": "tulpar_interaction", "strict": True, "schema": INTERACTION_SCHEMA},
+                "json_schema": {"name": "tulpar_reply", "strict": True, "schema": RESPONSE_SCHEMA},
             },
             "temperature": 0.2,
             "max_tokens": 128,
@@ -265,7 +268,7 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
             "model": model,
             "messages": messages,
             "stream": False,
-            "format": INTERACTION_SCHEMA,
+            "format": RESPONSE_SCHEMA,
             "think": False,
             "keep_alive": "5m",
             "options": {"temperature": 0.2, "num_ctx": 2048, "num_predict": 128},
@@ -287,15 +290,8 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
             content = result["choices"][0]["message"]["content"]
         else:
             content = result["message"]["content"]
-        result = parse_interaction_response(content)
-        return enforce_spoken_navigation_intent(text, result)
-    except InvalidTargetProposal:
-        return InteractionResponse(
-            "I can only approach a visible marker, bench, or potted plant. Please name one clearly.",
-            "thinking",
-            "conversation",
-            None,
-        )
+        reply = parse_dialogue_response(content)
+        return InteractionResponse(reply.response, reply.emotion, "conversation", None)
     except DialogueError:
         raise
     except Exception as error:
@@ -341,4 +337,3 @@ def generate_local_vision_summary(image_bytes: bytes, user_question: str = "") -
         raise
     except Exception as error:
         raise DialogueError(f"Local vision request failed: {error}") from error
-

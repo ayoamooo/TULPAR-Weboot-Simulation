@@ -9,16 +9,21 @@ local speech recognition
         |
 immediate Stop / emergency gate -------------------> brake + invalidate pending reply
         |
-local interaction model ----> reply, emotion, target intent (allow-listed IDs only)
-        |
-deterministic voice policy -> mode + fresh camera visibility + spoken target + safety
-        |
-Webots controller ----> tracks, arm joints, face display, speaker
+deterministic command policy
+        | direct command                 | named-object command       | conversation
+        |                                |                            |
+mode / greeting / emotion              |                      local dialogue model
+                                       |                      reply + emotion
+                                       +-------------+--------------+
+                                                     |
+                        camera visibility + floor mode + stop safety gates
+                                                     |
+Webots controller ----------------------> tracks, arms, face, speaker
         |
 aggregate technical event log (no transcript or audio)
 ```
 
-The local model can propose only a short conversational reply, a supported emotion, or navigation to one of two registered objects. It cannot output coordinates or actuator values. The controller accepts a target proposal only when the utterance explicitly requests movement to that same named object, its camera recognition is fresh, floor mode is active, and the emergency stop is clear. Vosk partial results are checked for spoken Stop before model inference. `stop` cancels the active action; `emergency stop` also latches the movement interlock until the operator says `clear emergency stop`. Both invalidate queued and in-flight results, so a delayed response cannot restart an action. Mode changes, greeting and direct emotion requests can also be spoken; keyboard inputs remain for development and repeatable test controls.
+The local model handles a short conversational reply and supported facial emotion. It cannot output coordinates or actuator values. Explicit movement commands to named scene objects are parsed locally without an LLM call; the controller starts an approach only when the target is registered and freshly visible, floor mode is active, and the emergency stop is clear. Vosk partial results are checked for spoken Stop before model inference. `stop` cancels the active action; `emergency stop` also latches the movement interlock until the operator says `clear emergency stop`. Both invalidate queued and in-flight results, so a delayed response cannot restart an action. Mode changes, greeting and direct emotion requests can also be spoken; keyboard inputs remain for development and repeatable test controls.
 
 Keyboard input remains available for repeatable development checks. Vosk sends English transcripts to the controller; the local interaction model runs on a worker thread, while Webots keeps its simulation loop responsive. A short bounded conversation history exists only in RAM. The selected model service may be Ollama or llama.cpp's local OpenAI-compatible endpoint. The controller logs event types and outcomes, not the recognized words, generated reply, audio, or conversation history. Webots recognition samples at one-second intervals; keys `3` and `4` reposition the virtual fingertip for the separate repeatable marker-pointing check. This is a scene-controlled gesture proxy, not human pose estimation. See `voice-setup.md` for model and runtime requirements.
 

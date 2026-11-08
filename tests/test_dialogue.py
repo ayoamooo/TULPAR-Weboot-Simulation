@@ -11,10 +11,12 @@ from core.dialogue import (
     DialogueResponse,
     InteractionResponse,
     enforce_spoken_navigation_intent,
+    explicit_navigation_interaction,
     generate_local_dialogue,
     generate_local_interaction,
     generate_local_vision_summary,
     parse_dialogue_response,
+    scene_navigation_interaction,
 )
 from core.scene_targets import SCENE_TARGETS
 
@@ -64,9 +66,9 @@ class DialogueValidationTests(unittest.TestCase):
             "Move to the yellow marker.",
             InteractionResponse("Moving to target-B.", "neutral", "move_to_object", "target-B"),
         )
-        self.assertEqual(result.action, "conversation")
-        self.assertIsNone(result.target_id)
-        self.assertEqual(result.emotion, "thinking")
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "target-A")
+        self.assertEqual(result.response, "Okay, I will move to the yellow marker now.")
 
     def test_explicit_matching_target_keeps_the_navigation_proposal(self):
         proposal = InteractionResponse(
@@ -93,33 +95,53 @@ class DialogueValidationTests(unittest.TestCase):
             "Approach the potted plant.",
             InteractionResponse("Moving to bench.", "neutral", "move_to_object", "scene-bench"),
         )
-        self.assertEqual(result.action, "conversation")
-        self.assertIn("object name", result.response)
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "scene-plant")
+        self.assertEqual(result.response, "Okay, I will move to the potted plant now.")
 
     def test_model_cannot_ignore_an_explicit_navigation_request(self):
         result = enforce_spoken_navigation_intent(
             "Go to the yellow marker.",
             InteractionResponse("Hello there.", "happy", "conversation", None),
         )
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "target-A")
+
+    def test_explicit_navigation_is_resolved_without_an_llm_proposal(self):
+        result = explicit_navigation_interaction("Go to the potted plant.")
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "scene-plant")
+        self.assertIsNone(explicit_navigation_interaction("Tell me about the plant."))
+
+    def test_ambiguous_navigation_gets_local_clarification_without_model(self):
+        result = scene_navigation_interaction("Go to that object.")
         self.assertEqual(result.action, "conversation")
-        self.assertIsNone(result.target_id)
-        self.assertIn("could not confirm", result.response)
+        self.assertIn("Which object", result.response)
+        self.assertIsNone(scene_navigation_interaction("Tell me about the plant."))
+
+    @patch("core.dialogue.urlopen", side_effect=AssertionError("LLM should not be called"))
+    def test_explicit_navigation_does_not_call_local_model(self, mock_urlopen):
+        result = generate_local_interaction("Please drive to the bench.")
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "scene-bench")
+        mock_urlopen.assert_not_called()
 
     @patch.dict(os.environ, {"TULPAR_LLM_BACKEND": "ollama"})
     @patch("core.dialogue.urlopen")
-    def test_invalid_model_target_falls_back_to_safe_clarification(self, mock_urlopen):
+    def test_open_conversation_uses_reply_schema_without_navigation_fields(self, mock_urlopen):
         mock_urlopen.return_value.__enter__.return_value = BytesIO(
             json.dumps({"message": {"content": json.dumps({
-                "response": "Moving to a nearby object.",
-                "emotion": "thinking",
-                "action": "move_to_object",
-                "target_id": "unregistered-object",
+                "response": "I can explore the simulated room with you.",
+                "emotion": "happy",
             })}}).encode()
         )
-        result = generate_local_interaction("Please move to the green object.")
+        result = generate_local_interaction("What can you do?")
         self.assertEqual(result.action, "conversation")
         self.assertIsNone(result.target_id)
-        self.assertIn("potted plant", result.response)
+        self.assertIn("explore", result.response)
+        payload = json.loads(mock_urlopen.call_args.args[0].data)
+        self.assertEqual(payload["format"]["required"], ["response", "emotion"])
+        self.assertNotIn("target_id", payload["format"]["properties"])
 
     @patch.dict(os.environ, {"TULPAR_OLLAMA_URL": "http://127.0.0.1:11434", "TULPAR_OLLAMA_MODEL": "qwen3:4b"})
     @patch("core.dialogue.urlopen")
@@ -159,4 +181,3 @@ class DialogueValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -45,6 +45,22 @@ class FakeRecorder:
 
 
 class ControllerTrialFailureTests(unittest.TestCase):
+    def test_explicit_scene_navigation_bypasses_model_queue(self):
+        controller = TulparController.__new__(TulparController)
+        controller.mode = "floor"
+        controller.emergency_stop = False
+        controller.dialogue_epoch = 0
+        controller.cancel_pending_dialogue = lambda: None
+        controller.robot = types.SimpleNamespace(getTime=lambda: 4.0)
+        controller.navigation_requests = []
+        controller.handle_natural_object_request = (
+            lambda transcript, result:
+            controller.navigation_requests.append((transcript, result.target_id))
+        )
+        controller.dialogue_requests = types.SimpleNamespace(put_nowait=lambda *_: self.fail("LLM queued"))
+        controller.dispatch_spoken_text("Go to the potted plant.")
+        self.assertEqual(controller.navigation_requests, [("Go to the potted plant.", "scene-plant")])
+
     def test_approach_starts_with_a_spoken_response_and_face_state(self):
         controller = TulparController.__new__(TulparController)
         controller.mode = "floor"

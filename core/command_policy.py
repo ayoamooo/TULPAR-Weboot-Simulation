@@ -96,6 +96,18 @@ def _is_mode_request(phrase: str, mode: str) -> bool:
 def explicit_navigation_target(text: str) -> str | None:
     """Resolve a named scene target only when the utterance clearly requests motion."""
     phrase = normalise(text)
+    if not is_scene_navigation_request(phrase):
+        return None
+    matches = [
+        target_id for target_id, aliases in TARGET_ALIASES.items()
+        if any(re.search(rf"\b{re.escape(alias)}\b", phrase) for alias in aliases)
+    ]
+    return matches[0] if len(matches) == 1 else None
+
+
+def is_scene_navigation_request(text: str) -> bool:
+    """Recognize direct movement requests even when the target is vague or unknown."""
+    phrase = normalise(text)
     movement = (
         r"(?:go|move|drive|walk|head|navigate)(?: over| up| closer)? "
         r"(?:to|toward|towards|near|up to)"
@@ -106,13 +118,7 @@ def explicit_navigation_target(text: str) -> str | None:
         rf"(?:can|could|would) you (?:please )?{movement}",
         rf"i (?:want|would like) you to {movement}",
     )
-    if not any(re.match(rf"^{prefix}\b", phrase) for prefix in prefixes):
-        return None
-    matches = [
-        target_id for target_id, aliases in TARGET_ALIASES.items()
-        if any(re.search(rf"\b{re.escape(alias)}\b", phrase) for alias in aliases)
-    ]
-    return matches[0] if len(matches) == 1 else None
+    return any(re.match(rf"^{prefix}\b", phrase) for prefix in prefixes)
 
 
 def allow_action(decision: CommandDecision, mode: str, emergency_stop: bool) -> bool:
@@ -124,4 +130,3 @@ def allow_action(decision: CommandDecision, mode: str, emergency_stop: bool) -> 
     if decision.action in {"approach_operator", "approach_marker", "approach_object"}:
         return mode == "floor"
     return True
-

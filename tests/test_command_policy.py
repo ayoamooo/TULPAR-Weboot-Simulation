@@ -4,6 +4,7 @@ from core.command_policy import (
     CommandDecision,
     allow_action,
     explicit_navigation_target,
+    is_scene_navigation_request,
     parse_spoken_command,
 )
 from core.scene_targets import validate_scene_navigation
@@ -43,6 +44,9 @@ class CommandPolicyTests(unittest.TestCase):
         self.assertIsNone(explicit_navigation_target("Go to that object."))
         self.assertIsNone(explicit_navigation_target("Go to the bench or plant."))
         self.assertIsNone(explicit_navigation_target("Tell me about the bench."))
+        self.assertTrue(is_scene_navigation_request("Go to that object."))
+        self.assertTrue(is_scene_navigation_request("Go to the bench or plant."))
+        self.assertFalse(is_scene_navigation_request("Tell me about the bench."))
 
     def test_navigation_target_rejects_negated_or_non_direct_statements(self):
         self.assertIsNone(explicit_navigation_target("Do not go to the bench."))
@@ -79,4 +83,3 @@ class CommandPolicyTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

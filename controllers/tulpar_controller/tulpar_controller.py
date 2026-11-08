@@ -22,7 +22,11 @@ from core.command_policy import (
     parse_spoken_command,
 )
 from core.diagnostics import format_status_event
-from core.dialogue import DialogueError, generate_local_interaction
+from core.dialogue import (
+    DialogueError,
+    generate_local_interaction,
+    scene_navigation_interaction,
+)
 from core.face_animation import display_oval_from_bounds, eye_pose, mouth_curve_points
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
@@ -918,6 +922,19 @@ class TulparController:
             finally:
                 self.command_received_at = None
             return
+        navigation = scene_navigation_interaction(text)
+        if navigation:
+            self.command_received_at = self.robot.getTime()
+            try:
+                if navigation.action == "move_to_object":
+                    self.handle_natural_object_request(text, navigation)
+                else:
+                    self.set_emotion(navigation.emotion)
+                    self.say(navigation.response)
+                    self.log("object_request", "clarification_required")
+            finally:
+                self.command_received_at = None
+            return
         self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
         try:
@@ -989,4 +1006,3 @@ class TulparController:
 
 if __name__ == "__main__":
     TulparController().run()
-
