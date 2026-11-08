@@ -13,7 +13,7 @@ The first scene represents a controlled university demonstration room. It includ
 
 ## Intended behaviour
 
-- The operator speaks naturally; local speech recognition transcribes the utterance, and a local model answers aloud, selects a facial emotion, or proposes a move to a named scene target.
+- The operator speaks naturally; local speech recognition transcribes the utterance, the deterministic command layer handles safety and named-object movement, and a local model answers conversational speech with a facial emotion.
 - Floor mode: requests such as `come to me`, `move to the purple marker`, `drive to the bench`, or `approach the potted plant` control the simulated tracked base. TULPAR can navigate only to the two markers, the bench, or the potted plant, which are registered and recognised scene objects.
 - Tabletop mode: the tracks remain locked; speech, animated face expressions, and arm gestures remain available.
 - Spoken phrases can also request a greeting wave or a supported expression. `switch to floor mode` and `switch to tabletop mode` reposition the simulated robot between its two placements.
@@ -70,3 +70,4 @@ For the full setup and per-trial procedure, see [`docs/simulation-runbook.md`](d
 The controller event log tags scenario events with the active trial ID. The marker-selection block alternates the expected target evenly between target A and target B; the trial prompt tells you which simulated pointing-pose key to use. After running trials, `python -m core.trial_analysis` prints counts, observed pass rates, target-selection accuracy, response-time summaries, and channel-start spreads from those files. Empty or unmeasured quantities stay unavailable; the analysis does not invent values. The greeting voice now starts with the face response, just before the first simulated arm movement.
 
 ![Webots preview of TULPAR greeting in tabletop mode](docs/assets/tulpar-walkthrough-preview.png)
+
