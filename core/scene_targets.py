@@ -83,6 +83,26 @@ def validate_scene_navigation(
     return None
 
 
+def target_search_state(
+    target_visible: bool,
+    recognition_fresh: bool,
+    mode: str,
+    emergency_stop: bool,
+    elapsed_s: float,
+    timeout_s: float = 7.0,
+) -> str:
+    """Classify a bounded in-place search before any approach can begin."""
+    if mode != "floor":
+        return "rejected_tabletop"
+    if emergency_stop:
+        return "rejected_emergency_stop"
+    if recognition_fresh and target_visible:
+        return "found"
+    if elapsed_s >= timeout_s:
+        return "not_found"
+    return "searching"
+
+
 def _spoken_target(transcript: str) -> str | None:
     from core.command_policy import explicit_navigation_target
 

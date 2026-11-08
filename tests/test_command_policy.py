@@ -7,7 +7,7 @@ from core.command_policy import (
     is_scene_navigation_request,
     parse_spoken_command,
 )
-from core.scene_targets import validate_scene_navigation
+from core.scene_targets import target_search_state, validate_scene_navigation
 
 
 class CommandPolicyTests(unittest.TestCase):
@@ -79,6 +79,14 @@ class CommandPolicyTests(unittest.TestCase):
             validate_scene_navigation(args[0], args[1], args[2], True, args[4], 0.1),
             "rejected_emergency_stop",
         )
+
+    def test_object_search_requires_fresh_visibility_and_has_a_timeout(self):
+        self.assertEqual(target_search_state(False, False, "floor", False, 1.0), "searching")
+        self.assertEqual(target_search_state(True, False, "floor", False, 1.0), "searching")
+        self.assertEqual(target_search_state(True, True, "floor", False, 1.0), "found")
+        self.assertEqual(target_search_state(False, True, "floor", False, 7.0), "not_found")
+        self.assertEqual(target_search_state(True, True, "tabletop", False, 1.0), "rejected_tabletop")
+        self.assertEqual(target_search_state(True, True, "floor", True, 1.0), "rejected_emergency_stop")
 
 
 if __name__ == "__main__":

@@ -37,7 +37,11 @@ from core.pointing import (
     update_selection_success,
 )
 from core.range_safety import RangeSafetyMonitor
-from core.scene_targets import SCENE_TARGETS, validate_scene_navigation
+from core.scene_targets import (
+    SCENE_TARGETS,
+    target_search_state,
+    validate_scene_navigation,
+)
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
 from core.showcase import Showcase
@@ -122,6 +126,7 @@ class TulparController:
         self.emergency_stop = False
         self.action = None
         self.target = None
+        self.pending_scene_target_search = None
         self.command_received_at = None
         self.pending_movement_response_start = None
         self.pending_greeting_response_start = None
@@ -416,6 +421,7 @@ class TulparController:
         self.tracks(0.0, 0.0)
         self.action = None
         self.target = None
+        self.pending_scene_target_search = None
         self.pending_stop_time = (
             self.command_received_at
             if self.command_received_at is not None else self.robot.getTime()
@@ -513,14 +519,13 @@ class TulparController:
             self.say("I can only drive to an object in floor mode, with the emergency stop cleared.")
             self.log("object_request", rejection, target_id=result.target_id)
             return
-        if rejection in {"recognition_frame_stale", "target_not_visible"}:
-            self.say("I cannot see that object clearly right now. Please repeat the request when it is in view.")
-            self.log("object_request", rejection, target_id=result.target_id)
-            return
         node = self.scene_target_nodes[result.target_id]
         if node is None:
             self.say("That scene object is unavailable in this simulation.")
             self.log("object_request", "rejected_missing_scene_node", target_id=result.target_id)
+            return
+        if rejection in {"recognition_frame_stale", "target_not_visible"}:
+            self.start_scene_target_search(transcript, result)
             return
         position = node.getPosition()
         target = (float(position[0]), float(position[1]))
@@ -532,6 +537,74 @@ class TulparController:
             )
         finally:
             self.command_received_at = None
+
+    def start_scene_target_search(self, transcript, result):
+        """Turn in place briefly when a named, registered target is out of view."""
+        if self.mode != "floor" or self.emergency_stop:
+            self.say("I can only look for an object in floor mode with the emergency stop cleared.")
+            self.log("object_search", "rejected_safety_state", target_id=result.target_id)
+            return
+        started_at = self.robot.getTime()
+        self.pending_scene_target_search = {
+            "transcript": transcript,
+            "result": result,
+            "started_at": started_at,
+            "command_received_at": (
+                self.command_received_at
+                if self.command_received_at is not None else started_at
+            ),
+        }
+        self.action = "search_target"
+        self.target = None
+        self.approach_motion_started = False
+        self.set_emotion("thinking")
+        self.say(f"I cannot see the {SCENE_TARGETS[result.target_id]['spoken_name']} yet. I will look around.")
+        self.log("object_search", "started", target_id=result.target_id, timeout_s=7.0)
+
+    def update_scene_target_search(self):
+        """Rotate safely until a fresh camera frame sees the named target or times out."""
+        pending = self.pending_scene_target_search
+        if pending is None:
+            self.tracks(0.0, 0.0)
+            self.action = None
+            return
+        now = self.robot.getTime()
+        target_id = pending["result"].target_id
+        state = target_search_state(
+            SCENE_TARGETS[target_id]["model"] in self.latest_recognition,
+            self.last_recognition_time is not None
+            and now - self.last_recognition_time <= MAX_RECOGNITION_AGE,
+            self.mode,
+            self.emergency_stop,
+            now - pending["started_at"],
+        )
+        if state in {"rejected_tabletop", "rejected_emergency_stop"}:
+            self.tracks(0.0, 0.0)
+            self.pending_scene_target_search = None
+            self.action = None
+            self.log("object_search", "cancelled", target_id=target_id, reason=state)
+            return
+        if state == "found":
+            self.tracks(0.0, 0.0)
+            self.pending_scene_target_search = None
+            self.action = None
+            self.log("object_search", "target_found", target_id=target_id)
+            self.command_received_at = pending["command_received_at"]
+            try:
+                self.handle_natural_object_request(pending["transcript"], pending["result"])
+            finally:
+                self.command_received_at = None
+            return
+        if state == "not_found":
+            self.tracks(0.0, 0.0)
+            self.pending_scene_target_search = None
+            self.action = None
+            label = SCENE_TARGETS[target_id]["spoken_name"]
+            self.set_emotion("sad")
+            self.say(f"I could not find the {label}. Please turn me toward it and ask again.")
+            self.log("object_search", "timed_out", target_id=target_id, elapsed_s=round(now - pending["started_at"], 2))
+            return
+        self.tracks(-0.25, 0.25)
 
     def refresh_recognition(self):
         """Snapshot camera recognitions at the configured one-second cadence."""
@@ -900,6 +973,11 @@ class TulparController:
         decision = parse_spoken_command(text)
         if decision.action != "stop":
             self.cancel_pending_dialogue()
+            if getattr(self, "action", None) == "search_target":
+                self.tracks(0.0, 0.0)
+                self.pending_scene_target_search = None
+                self.action = None
+                self.log("object_search", "cancelled", reason="new_voice_command")
         if not allow_action(decision, self.mode, self.emergency_stop):
             self.log("spoken_text", "rejected_by_safety_gate", action=decision.action)
             self.say("That action is unavailable in the current mode.")
@@ -995,6 +1073,8 @@ class TulparController:
                     self.update_approach()
                 elif self.action == "wave":
                     self.update_wave()
+                elif self.action == "search_target":
+                    self.update_scene_target_search()
         finally:
             if self.voice_listener:
                 self.voice_listener.stop()
