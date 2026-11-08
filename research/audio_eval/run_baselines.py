@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT.parents[1]))
 
 import numpy as np
 import scipy
@@ -31,6 +32,7 @@ import scipy.signal
 sys.path.insert(0, str(ROOT / "_deps"))
 import sklearn
 import soundfile as sf
+from core.audio_features import RATE, mfcc_summary
 from sklearn.metrics import classification_report, confusion_matrix, f1_score
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
@@ -39,53 +41,10 @@ from sklearn.svm import LinearSVC
 
 DATA = ROOT / "data"
 RESULTS = ROOT / "results"
-RATE = 16_000
-N_FFT = 512
-FRAME = 400  # 25 ms
-HOP = 160  # 10 ms
-MELS = 40
-MFCCS = 13
 SPEECH_WORDS = ["down", "go", "left", "no", "off", "on", "right", "stop", "up", "yes"]
 SPEECH_LABELS = SPEECH_WORDS + ["_silence_", "_unknown_"]
 RAVDESS_LABELS = ["neutral", "calm", "happy", "sad", "angry", "fearful", "disgust", "surprised"]
 EMOTION_CODES = {f"{i:02d}": label for i, label in enumerate(RAVDESS_LABELS, 1)}
-
-
-def _mel_bank() -> np.ndarray:
-    hz = np.linspace(0, RATE / 2, N_FFT // 2 + 1)
-    mel = 2595.0 * np.log10(1.0 + hz / 700.0)
-    points = np.linspace(mel[0], mel[-1], MELS + 2)
-    bank = np.zeros((MELS, len(hz)), dtype=np.float32)
-    for i in range(MELS):
-        left, centre, right = points[i : i + 3]
-        bank[i] = np.maximum(0, np.minimum((mel - left) / (centre - left), (right - mel) / (right - centre)))
-    return bank
-
-
-MEL_BANK = _mel_bank()
-
-
-def mfcc_summary(audio_bytes: bytes, *, target_seconds: float | None) -> np.ndarray:
-    signal, sample_rate = sf.read(io.BytesIO(audio_bytes), dtype="float32", always_2d=True)
-    signal = signal.mean(axis=1)
-    if sample_rate != RATE:
-        divisor = math.gcd(int(sample_rate), RATE)
-        signal = scipy.signal.resample_poly(signal, RATE // divisor, int(sample_rate) // divisor).astype(np.float32)
-    if target_seconds is not None:
-        length = int(RATE * target_seconds)
-        signal = signal[:length]
-        if len(signal) < length:
-            signal = np.pad(signal, (0, length - len(signal)))
-    if len(signal) == 0:
-        raise ValueError("empty audio")
-    padded = np.pad(signal, (N_FFT // 2, N_FFT // 2))
-    frames = np.lib.stride_tricks.sliding_window_view(padded, FRAME)[::HOP]
-    window = np.hanning(FRAME).astype(np.float32)
-    spectrum = np.fft.rfft(frames * window, n=N_FFT, axis=1)
-    power = (spectrum.real**2 + spectrum.imag**2).astype(np.float32)
-    mel_energy = np.maximum(power @ MEL_BANK.T, 1e-10)
-    coefficients = scipy.fft.dct(np.log(mel_energy), type=2, norm="ortho", axis=1)[:, :MFCCS]
-    return np.concatenate([coefficients.mean(axis=0), coefficients.std(axis=0)]).astype(np.float32)
 
 
 def read_tar_text(archive: tarfile.TarFile, members: list[tarfile.TarInfo], ending: str) -> set[str]:

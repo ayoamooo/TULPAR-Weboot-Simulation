@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Compile Python modules
-        run: python -m compileall -q core controllers tools
+        run: python -m compileall -q core controllers tools research/audio_eval
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
 

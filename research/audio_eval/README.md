@@ -1,6 +1,6 @@
 # Audio dataset pilot evaluation
 
-This folder contains a reproducible classical baseline for the two audio datasets referenced by the TULPAR report. It evaluates isolated keyword classification and acted vocal-emotion labels. It does not measure the complete robot, natural-language command recognition, live microphone performance, expression quality, or Raspberry Pi latency.
+This folder contains a reproducible classical baseline for the two audio datasets referenced by the TULPAR report. It evaluates isolated keyword classification and acted vocal-emotion labels using the shared MFCC extractor in `core/audio_features.py`. It does not measure the complete robot, natural-language command recognition, live microphone performance, expression quality, or Raspberry Pi latency.
 
 ## Data and permissions
 
