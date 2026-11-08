@@ -8,7 +8,10 @@ from unittest.mock import patch
 from core.dialogue import (
     DialogueError,
     DialogueResponse,
+    InteractionResponse,
+    enforce_spoken_navigation_intent,
     generate_local_dialogue,
+    generate_local_interaction,
     generate_local_vision_summary,
     parse_dialogue_response,
 )
@@ -44,6 +47,57 @@ class DialogueValidationTests(unittest.TestCase):
             parse_dialogue_response('{"response":" ","emotion":"neutral"}')
         with self.assertRaises(DialogueError):
             parse_dialogue_response('{"response":"' + ('x' * 361) + '","emotion":"neutral"}')
+
+    def test_model_cannot_move_without_an_explicit_spoken_target(self):
+        result = enforce_spoken_navigation_intent(
+            "Tell me what you can do.",
+            InteractionResponse("Moving to target-A.", "neutral", "move_to_object", "target-A"),
+        )
+        self.assertEqual(result.action, "conversation")
+        self.assertIsNone(result.target_id)
+        self.assertIn("yellow or purple marker", result.response)
+
+    def test_model_target_must_match_the_explicit_spoken_target(self):
+        result = enforce_spoken_navigation_intent(
+            "Move to the yellow marker.",
+            InteractionResponse("Moving to target-B.", "neutral", "move_to_object", "target-B"),
+        )
+        self.assertEqual(result.action, "conversation")
+        self.assertIsNone(result.target_id)
+        self.assertEqual(result.emotion, "thinking")
+
+    def test_explicit_matching_target_keeps_the_navigation_proposal(self):
+        proposal = InteractionResponse(
+            "I am moving to the purple marker.", "thinking", "move_to_object", "target-B"
+        )
+        self.assertEqual(
+            enforce_spoken_navigation_intent("Drive to the purple marker.", proposal), proposal
+        )
+
+    def test_model_cannot_ignore_an_explicit_navigation_request(self):
+        result = enforce_spoken_navigation_intent(
+            "Go to the yellow marker.",
+            InteractionResponse("Hello there.", "happy", "conversation", None),
+        )
+        self.assertEqual(result.action, "conversation")
+        self.assertIsNone(result.target_id)
+        self.assertIn("could not confirm", result.response)
+
+    @patch.dict(os.environ, {"TULPAR_LLM_BACKEND": "ollama"})
+    @patch("core.dialogue.urlopen")
+    def test_invalid_model_target_falls_back_to_safe_clarification(self, mock_urlopen):
+        mock_urlopen.return_value.__enter__.return_value = BytesIO(
+            json.dumps({"message": {"content": json.dumps({
+                "response": "Moving to a nearby object.",
+                "emotion": "thinking",
+                "action": "move_to_object",
+                "target_id": "unregistered-object",
+            })}}).encode()
+        )
+        result = generate_local_interaction("Please move to the green object.")
+        self.assertEqual(result.action, "conversation")
+        self.assertIsNone(result.target_id)
+        self.assertIn("yellow or purple marker", result.response)
 
     @patch.dict(os.environ, {"TULPAR_OLLAMA_URL": "http://127.0.0.1:11434", "TULPAR_OLLAMA_MODEL": "qwen3:4b"})
     @patch("core.dialogue.urlopen")

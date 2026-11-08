@@ -7,6 +7,8 @@ import os
 import re
 from urllib.request import Request, urlopen
 
+from core.command_policy import explicit_navigation_target
+
 
 ALLOWED_EMOTIONS = frozenset(
     {"neutral", "happy", "sad", "surprised", "angry", "sleepy", "wink", "love", "thinking"}
@@ -49,6 +51,10 @@ class InteractionResponse:
 
 class DialogueError(RuntimeError):
     """Raised when local dialogue is unavailable or returns invalid data."""
+
+
+class InvalidTargetProposal(DialogueError):
+    """Raised when the model proposes a target outside the registered scene."""
 
 
 def parse_dialogue_response(value: str | dict) -> DialogueResponse:
@@ -151,10 +157,43 @@ def parse_interaction_response(value: str | dict) -> InteractionResponse:
         raise DialogueError("The local model proposed an unsupported action.")
     if action == "move_to_object":
         if target_id not in {"target-A", "target-B"}:
-            raise DialogueError("The local model proposed an unknown scene target.")
+            raise InvalidTargetProposal("The local model proposed an unknown scene target.")
     elif target_id is not None:
         raise DialogueError("A conversational answer must not include a movement target.")
     return InteractionResponse(response.strip(), emotion, action, target_id)
+
+
+def enforce_spoken_navigation_intent(
+    transcript: str, result: InteractionResponse
+) -> InteractionResponse:
+    """Require the model's movement proposal to match an explicit spoken target."""
+    spoken_target = explicit_navigation_target(transcript)
+    if result.action == "move_to_object":
+        if spoken_target is None:
+            return InteractionResponse(
+                "I can talk with you, greet you, or approach the yellow or purple marker. "
+                "Which would you like?",
+                result.emotion,
+                "conversation",
+                None,
+            )
+        if result.target_id != spoken_target:
+            return InteractionResponse(
+                "I heard a request to move, but I could not match it to the correct marker. "
+                "Please repeat the colour.",
+                "thinking",
+                "conversation",
+                None,
+            )
+    elif spoken_target is not None:
+        return InteractionResponse(
+            "I heard a request to move to a marker, but could not confirm it. "
+            "Please repeat the request.",
+            "thinking",
+            "conversation",
+            None,
+        )
+    return result
 
 
 def generate_local_interaction(transcript: str, history=()) -> InteractionResponse:
@@ -237,7 +276,15 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
             content = result["choices"][0]["message"]["content"]
         else:
             content = result["message"]["content"]
-        return parse_interaction_response(content)
+        result = parse_interaction_response(content)
+        return enforce_spoken_navigation_intent(text, result)
+    except InvalidTargetProposal:
+        return InteractionResponse(
+            "I can only approach the yellow or purple marker. Please name one clearly.",
+            "thinking",
+            "conversation",
+            None,
+        )
     except DialogueError:
         raise
     except Exception as error:
