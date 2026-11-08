@@ -16,13 +16,14 @@ Voice is the primary interaction path and runs locally once configured. No audio
 
 ## Configuration
 
-For the Windows launcher, copy `START-TULPAR.local.example.cmd` to
-`START-TULPAR.local.cmd` and edit the Vosk model path and selected dialogue backend.
-The example points to `voice-models/vosk-model-small-en-us-0.15` inside the project;
-unzip the matching Vosk model there, or edit the path. The local file is ignored by Git.
-`START-TULPAR.cmd` reads it before opening the
-interactive `tulpar_demo.wbt` world. Use `START-TULPAR-SHOWCASE.cmd` for the separate
-automatic visual presentation.
+On Windows, run `SETUP-TULPAR-VOICE.ps1` from PowerShell to install the optional Python packages, download the compact English Vosk model, and create `START-TULPAR.local.cmd` if it does not already exist. The archive is downloaded from the Vosk project and extracted into the Git-ignored `voice-models/` directory; it is not committed to the repository. The model catalogue lists this model as approximately 40 MB and Apache 2.0 licensed ([Vosk model catalogue](https://alphacephei.com/vosk/models)). Confirm that the Python environment used by Webots is the same one printed by the setup script; otherwise install the optional packages in Webots' configured Python environment.
+
+`START-TULPAR.cmd` reads `START-TULPAR.local.cmd` before opening the interactive
+`tulpar_demo.wbt` world. The setup script creates it from the example on first run and
+preserves it on later runs. If you configure voice manually, copy
+`START-TULPAR.local.example.cmd`, set the extracted model path and selected dialogue
+backend, and keep the local file out of Git. Use `START-TULPAR-SHOWCASE.cmd` for the
+separate automatic visual presentation.
 
 Install the optional Python packages if the Python interpreter used by Webots does not already have them:
 
