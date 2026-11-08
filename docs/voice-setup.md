@@ -50,7 +50,7 @@ $env:TULPAR_LLAMACPP_MODEL = "qwen3.5-2b-q4"
 
 The server must support `/v1/chat/completions` and JSON-schema constrained output. Model binaries are not stored in Git. The Qwen3.5-2B Q4 choice is a provisional candidate; the final model selection depends on measured intent accuracy, response quality, RAM/VRAM use, and latency on the target computer. The llama.cpp path has not yet been runtime-validated in this project.
 
-If `TULPAR_VOSK_MODEL` is unset or points to a missing directory, the microphone is disabled and keyboard controls remain available. If the selected local model server is unavailable, TULPAR reports that conversational inference is unavailable; immediate Stop and keyboard controls remain independent of it. Camera image capture is not part of the conversational turn in the current implementation. Live audio is held only in the microphone pipeline and is not written to persistent storage by this controller.
+If `TULPAR_VOSK_MODEL` is unset or points to a missing directory, the microphone is disabled and keyboard controls remain available. Startup waits until the audio stream has opened; if the stream fails later, TULPAR marks voice input unavailable and announces that the simulation should be restarted after checking the microphone. If the selected local model server is unavailable, TULPAR reports that conversational inference is unavailable; immediate Stop and keyboard controls remain independent of it. Camera image capture is not part of the conversational turn in the current implementation. Live audio is held only in the microphone pipeline and is not written to persistent storage by this controller.
 
 ## Evidence limits
 

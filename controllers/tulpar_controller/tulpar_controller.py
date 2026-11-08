@@ -163,7 +163,7 @@ class TulparController:
                 )
                 self.voice_listener.start()
                 self.voice_input_active = True
-                self.log("microphone", "starting", model_path=model_path)
+                self.log("microphone", "ready", model_path=model_path)
             except Exception as error:
                 self.voice_errors.put(str(error))
         else:
@@ -202,6 +202,12 @@ class TulparController:
             except Empty:
                 break
             self.log("microphone", "error", detail=error)
+            if error.startswith("Microphone input stopped:"):
+                self.voice_input_active = False
+                self.log("microphone", "unavailable")
+                self.say(
+                    "Voice input has stopped. Please restart the simulation after checking the microphone."
+                )
 
         while True:
             try:
