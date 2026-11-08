@@ -41,7 +41,7 @@ Voice examples:
 Keys (development and test controls):
 
 - `1` — approach the operator.
-- `2` — approach the marker indicated by the simulated pointing pose.
+- `2` — approach the marker indicated by the simulated pointing pose (test control only; voice navigation asks for a named marker).
 - `3` / `4` — set the simulated operator fingertip pose towards marker A / B; then press `2` to test camera-based selection.
 - `S` — stop.
 - `G` — greeting wave.

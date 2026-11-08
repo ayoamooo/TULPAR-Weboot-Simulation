@@ -6,7 +6,7 @@ from core.command_policy import CommandDecision, allow_action, parse_spoken_comm
 class CommandPolicyTests(unittest.TestCase):
     def test_only_report_commands_start_floor_motion(self):
         self.assertEqual(parse_spoken_command("come to me").action, "approach_operator")
-        self.assertEqual(parse_spoken_command("go to that marker").action, "approach_marker")
+        self.assertEqual(parse_spoken_command("go to that marker").action, "conversation")
         self.assertEqual(parse_spoken_command("Could you drive anywhere you like?").action, "conversation")
 
     def test_stop_has_priority_in_every_mode(self):

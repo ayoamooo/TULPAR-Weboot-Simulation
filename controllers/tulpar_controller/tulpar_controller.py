@@ -875,7 +875,6 @@ class TulparController:
             "mode_floor": lambda: self.command("mode_floor"),
             "mode_tabletop": lambda: self.command("mode_tabletop"),
             "approach_operator": lambda: self.command("operator"),
-            "approach_marker": lambda: self.command("marker"),
             "greet": lambda: self.command("greet"),
             "emotion": lambda: self.command(decision.emotion),
         }

@@ -44,7 +44,10 @@ def parse_spoken_command(text: str) -> CommandDecision:
         phrase,
     ):
         return CommandDecision("emergency_off")
-    if _is_stop_request(phrase):
+    if _is_stop_request(phrase) or phrase in {
+        "don't move", "do not move", "please don't move", "please do not move",
+        "stay still", "stay there", "stay put", "please stay there", "please stay put",
+    }:
         return CommandDecision("stop")
 
     if _is_mode_request(phrase, "floor"):
@@ -54,8 +57,6 @@ def parse_spoken_command(text: str) -> CommandDecision:
 
     if _is_operator_approach_request(phrase):
         return CommandDecision("approach_operator")
-    if phrase in {"go to that marker", "go to the marker", "go to marker"}:
-        return CommandDecision("approach_marker")
     if phrase in {
         "say hello", "say hi", "hello tulpar", "hi tulpar", "tulpar say hello",
         "tulpar say hi", "wave hello", "give me a wave", "greet me",
@@ -79,12 +80,12 @@ def _is_stop_request(phrase: str) -> bool:
 def _is_operator_approach_request(phrase: str) -> bool:
     return bool(re.fullmatch(
         r"(?:please )?(?:tulpar )?(?:come|move|drive|approach) "
-        r"(?:over |closer )?(?:here|me|to me|toward me|towards me)|"
+        r"(?:over |closer )?(?:here|me|to me|toward me|towards me|(?:the )?(?:operator|person|human))|"
         r"(?:please )?(?:tulpar )?come closer",
         phrase,
     ) or re.fullmatch(
         r"(?:please )?(?:can you|could you|would you) (?:please )?"
-        r"(?:come|move|drive|approach) (?:over |closer )?(?:here|me|to me|toward me|towards me)|"
+        r"(?:come|move|drive|approach) (?:over |closer )?(?:here|me|to me|toward me|towards me|(?:the )?(?:operator|person|human))|"
         r"(?:please )?(?:can you|could you|would you) (?:please )?come closer",
         phrase,
     ))

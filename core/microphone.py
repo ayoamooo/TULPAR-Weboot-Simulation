@@ -4,15 +4,8 @@ from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Event, Thread
 import json
-import re
 
-
-_URGENT_STOP = re.compile(
-    r"(?:^|\s)(?:please\s+)?(?:tulpar\s+)?"
-    r"(?:stop|halt|freeze|cancel|abort)(?:\s+(?:now|moving|the robot|the tracks))?"
-    r"(?:$|\s)",
-    re.IGNORECASE,
-)
+from core.command_policy import parse_spoken_command
 
 
 class VoskMicrophone:
@@ -82,13 +75,8 @@ class VoskMicrophone:
                         # safety stop. Reset after dispatch so the same phrase
                         # is not delivered again as a final transcript.
                         partial = json.loads(recognizer.PartialResult()).get("partial", "").strip()
-                        normalized_partial = " ".join(partial.lower().split())
-                        negated_stop = re.search(
-                            r"\b(?:don't|do not|never|shouldn't)\s+(?:please\s+)?"
-                            r"(?:stop|halt|freeze|cancel|abort)\b",
-                            normalized_partial,
-                        )
-                        if partial and not negated_stop and _URGENT_STOP.search(partial):
+                        decision = parse_spoken_command(partial) if partial else None
+                        if decision and decision.action in {"stop", "emergency_on"}:
                             self.on_transcript(partial)
                             recognizer.Reset()
         except Exception as error:
