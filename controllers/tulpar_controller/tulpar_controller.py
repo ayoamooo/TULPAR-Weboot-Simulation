@@ -229,10 +229,13 @@ class TulparController:
 
     def cancel_pending_dialogue(self):
         """Invalidate in-flight answers and discard requests that have not started."""
-        self.dialogue_epoch += 1
+        self.dialogue_epoch = getattr(self, "dialogue_epoch", 0) + 1
+        requests = getattr(self, "dialogue_requests", None)
+        if requests is None:
+            return
         while True:
             try:
-                self.dialogue_requests.get_nowait()
+                requests.get_nowait()
             except Empty:
                 break
 

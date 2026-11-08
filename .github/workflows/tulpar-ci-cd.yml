@@ -1,0 +1,75 @@
+name: TULPAR CI/CD
+
+on:
+  push:
+    branches: [main, tulpar-implementation]
+    tags: ["v*"]
+  pull_request:
+    branches: [main, tulpar-implementation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tulpar-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Compile Python modules
+        run: python -m compileall -q core controllers tools
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+  package:
+    name: Package simulator source
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Create source archive
+        shell: bash
+        run: |
+          mkdir -p dist
+          git archive --format=zip --output="dist/TULPAR-simulation-${GITHUB_SHA}.zip" HEAD
+      - name: Upload source archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: TULPAR-simulation-${{ github.sha }}
+          path: dist/TULPAR-simulation-${{ github.sha }}.zip
+          if-no-files-found: error
+          retention-days: 30
+
+  release:
+    name: Publish tagged GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download packaged simulator
+        uses: actions/download-artifact@v4
+        with:
+          name: TULPAR-simulation-${{ github.sha }}
+          path: dist
+      - name: Publish release and source archive
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$GITHUB_REF_NAME" dist/*.zip --generate-notes
