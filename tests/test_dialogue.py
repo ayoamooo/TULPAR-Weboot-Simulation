@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from core.dialogue import (
     DialogueError,
+    INTERACTION_SCHEMA,
     DialogueResponse,
     InteractionResponse,
     enforce_spoken_navigation_intent,
@@ -15,6 +16,7 @@ from core.dialogue import (
     generate_local_vision_summary,
     parse_dialogue_response,
 )
+from core.scene_targets import SCENE_TARGETS
 
 
 class DialogueValidationTests(unittest.TestCase):
@@ -55,7 +57,7 @@ class DialogueValidationTests(unittest.TestCase):
         )
         self.assertEqual(result.action, "conversation")
         self.assertIsNone(result.target_id)
-        self.assertIn("yellow or purple marker", result.response)
+        self.assertIn("bench", result.response)
 
     def test_model_target_must_match_the_explicit_spoken_target(self):
         result = enforce_spoken_navigation_intent(
@@ -70,9 +72,29 @@ class DialogueValidationTests(unittest.TestCase):
         proposal = InteractionResponse(
             "I am moving to the purple marker.", "thinking", "move_to_object", "target-B"
         )
-        self.assertEqual(
-            enforce_spoken_navigation_intent("Drive to the purple marker.", proposal), proposal
+        result = enforce_spoken_navigation_intent("Drive to the purple marker.", proposal)
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "target-B")
+        self.assertEqual(result.response, "Okay, I will move to the purple marker now.")
+
+    def test_registered_scene_objects_are_valid_navigation_targets(self):
+        self.assertIn("scene-bench", INTERACTION_SCHEMA["properties"]["target_id"]["enum"])
+        proposal = InteractionResponse(
+            "What is the target id? (scene-bench)", "thinking", "move_to_object", "scene-bench"
         )
+        result = enforce_spoken_navigation_intent("Please drive to the bench.", proposal)
+        self.assertEqual(result.action, "move_to_object")
+        self.assertEqual(result.target_id, "scene-bench")
+        self.assertEqual(result.response, "Okay, I will move to the bench now.")
+        self.assertIn("scene-plant", SCENE_TARGETS)
+
+    def test_registered_target_must_match_the_spoken_object_name(self):
+        result = enforce_spoken_navigation_intent(
+            "Approach the potted plant.",
+            InteractionResponse("Moving to bench.", "neutral", "move_to_object", "scene-bench"),
+        )
+        self.assertEqual(result.action, "conversation")
+        self.assertIn("object name", result.response)
 
     def test_model_cannot_ignore_an_explicit_navigation_request(self):
         result = enforce_spoken_navigation_intent(
@@ -97,7 +119,7 @@ class DialogueValidationTests(unittest.TestCase):
         result = generate_local_interaction("Please move to the green object.")
         self.assertEqual(result.action, "conversation")
         self.assertIsNone(result.target_id)
-        self.assertIn("yellow or purple marker", result.response)
+        self.assertIn("potted plant", result.response)
 
     @patch.dict(os.environ, {"TULPAR_OLLAMA_URL": "http://127.0.0.1:11434", "TULPAR_OLLAMA_MODEL": "qwen3:4b"})
     @patch("core.dialogue.urlopen")
@@ -137,3 +159,4 @@ class DialogueValidationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+

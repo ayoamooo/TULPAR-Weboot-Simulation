@@ -33,6 +33,7 @@ from core.pointing import (
     update_selection_success,
 )
 from core.range_safety import RangeSafetyMonitor
+from core.scene_targets import SCENE_TARGETS, validate_scene_navigation
 from core.stop_measurement import WheelStopDetector
 from core.trial_recorder import TrialRecorder
 from core.showcase import Showcase
@@ -77,9 +78,13 @@ class TulparController:
         self.speaker = self.robot.getDevice("speaker")
         self.face = self.robot.getDevice("face display")
         self.camera = self.robot.getDevice("robot camera")
+        self.scene_target_nodes = {
+            target_id: self.robot.getFromDef(target["def_name"])
+            for target_id, target in SCENE_TARGETS.items()
+        }
         self.marker_nodes = {
-            "target-A": self.robot.getFromDef("MARKER_A"),
-            "target-B": self.robot.getFromDef("MARKER_B"),
+            target_id: self.scene_target_nodes[target_id]
+            for target_id in ("target-A", "target-B")
         }
         self.operator_node = self.robot.getFromDef("OPERATOR")
         self.pointing_nodes = {
@@ -87,6 +92,7 @@ class TulparController:
             "operator-fingertip": self.robot.getFromDef("OPERATOR_FINGERTIP"),
         }
         self.latest_recognition = {}
+        self.last_recognised_models = None
         self.last_recognition_time = None
         self.last_recognition_refresh = -1.0
         self.last_selected_marker = None
@@ -478,29 +484,41 @@ class TulparController:
 
     def handle_natural_object_request(self, transcript, result):
         """Validate a model-proposed target against speech, visibility and safety gates."""
-        if result.target_id not in self.marker_nodes:
-            self.say("I cannot identify that object in this scene. Please name the gold or purple marker.")
-            self.log("object_request", "rejected_unknown_target")
-            return
-        if explicit_navigation_target(transcript) != result.target_id:
-            self.say("Which object do you mean? Please name the gold or purple marker.")
-            self.log("object_request", "rejected_intent_not_explicit", target_id=result.target_id)
-            return
-        decision = CommandDecision("approach_object")
-        if not allow_action(decision, self.mode, self.emergency_stop):
-            self.say("I can only drive to an object in floor mode, with the emergency stop cleared.")
-            self.log("object_request", "rejected_safety_gate", target_id=result.target_id)
-            return
         now = self.robot.getTime()
-        if (
-            self.last_recognition_time is None
-            or now - self.last_recognition_time > MAX_RECOGNITION_AGE
-            or result.target_id not in self.latest_recognition
-        ):
-            self.say("I cannot see that object clearly right now. Please repeat the request when it is in view.")
-            self.log("object_request", "rejected_not_visible", target_id=result.target_id)
+        recognition_age = (
+            None if self.last_recognition_time is None
+            else now - self.last_recognition_time
+        )
+        rejection = validate_scene_navigation(
+            transcript,
+            result.target_id,
+            self.mode,
+            self.emergency_stop,
+            self.latest_recognition,
+            recognition_age,
+        )
+        if rejection == "unknown_target":
+            self.say("I cannot identify that object in this scene. Please name a visible object.")
+            self.log("object_request", rejection, target_id=result.target_id)
             return
-        position = self.marker_nodes[result.target_id].getPosition()
+        if rejection in {"intent_not_explicit", "intent_target_mismatch"}:
+            self.say("Which object do you mean? Please name the marker, bench, or potted plant.")
+            self.log("object_request", rejection, target_id=result.target_id)
+            return
+        if rejection in {"rejected_tabletop", "rejected_emergency_stop"}:
+            self.say("I can only drive to an object in floor mode, with the emergency stop cleared.")
+            self.log("object_request", rejection, target_id=result.target_id)
+            return
+        if rejection in {"recognition_frame_stale", "target_not_visible"}:
+            self.say("I cannot see that object clearly right now. Please repeat the request when it is in view.")
+            self.log("object_request", rejection, target_id=result.target_id)
+            return
+        node = self.scene_target_nodes[result.target_id]
+        if node is None:
+            self.say("That scene object is unavailable in this simulation.")
+            self.log("object_request", "rejected_missing_scene_node", target_id=result.target_id)
+            return
+        position = node.getPosition()
         target = (float(position[0]), float(position[1]))
         self.command_received_at = now
         try:
@@ -524,6 +542,10 @@ class TulparController:
                 x, y = item.getPositionOnImage()
                 self.latest_recognition[label] = (float(x), float(y))
         self.last_recognition_time = now
+        recognised_models = sorted(self.latest_recognition)
+        if recognised_models != self.last_recognised_models:
+            self.last_recognised_models = recognised_models
+            self.log("camera_recognition", "scene_objects_updated", models=recognised_models)
 
     def detected_operator_target(self):
         """Use camera visibility as a gate before reading the simulated pose."""
@@ -967,3 +989,4 @@ class TulparController:
 
 if __name__ == "__main__":
     TulparController().run()
+

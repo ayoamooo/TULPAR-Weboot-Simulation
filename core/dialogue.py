@@ -8,6 +8,7 @@ import re
 from urllib.request import Request, urlopen
 
 from core.command_policy import explicit_navigation_target
+from core.scene_targets import SCENE_TARGETS, target_prompt_lines
 
 
 ALLOWED_EMOTIONS = frozenset(
@@ -28,7 +29,10 @@ INTERACTION_SCHEMA = {
         "response": {"type": "string"},
         "emotion": {"type": "string", "enum": sorted(ALLOWED_EMOTIONS)},
         "action": {"type": "string", "enum": ["conversation", "move_to_object"]},
-        "target_id": {"type": ["string", "null"], "enum": [None, "target-A", "target-B"]},
+        "target_id": {
+            "type": ["string", "null"],
+            "enum": [None, *SCENE_TARGETS],
+        },
     },
     "required": ["response", "emotion", "action", "target_id"],
     "additionalProperties": False,
@@ -156,7 +160,7 @@ def parse_interaction_response(value: str | dict) -> InteractionResponse:
     if action not in {"conversation", "move_to_object"}:
         raise DialogueError("The local model proposed an unsupported action.")
     if action == "move_to_object":
-        if target_id not in {"target-A", "target-B"}:
+        if target_id not in SCENE_TARGETS:
             raise InvalidTargetProposal("The local model proposed an unknown scene target.")
     elif target_id is not None:
         raise DialogueError("A conversational answer must not include a movement target.")
@@ -171,7 +175,7 @@ def enforce_spoken_navigation_intent(
     if result.action == "move_to_object":
         if spoken_target is None:
             return InteractionResponse(
-                "I can talk with you, greet you, or approach the yellow or purple marker. "
+                "I can talk, greet you, or approach a visible marker, bench, or potted plant. "
                 "Which would you like?",
                 result.emotion,
                 "conversation",
@@ -179,12 +183,19 @@ def enforce_spoken_navigation_intent(
             )
         if result.target_id != spoken_target:
             return InteractionResponse(
-                "I heard a request to move, but I could not match it to the correct marker. "
-                "Please repeat the colour.",
+                "I heard a request to move, but could not match it to a named scene object. "
+                "Please repeat the object name.",
                 "thinking",
                 "conversation",
                 None,
             )
+        spoken_name = SCENE_TARGETS[result.target_id]["spoken_name"]
+        return InteractionResponse(
+            f"Okay, I will move to the {spoken_name} now.",
+            result.emotion,
+            result.action,
+            result.target_id,
+        )
     elif spoken_target is not None:
         return InteractionResponse(
             "I heard a request to move to a marker, but could not confirm it. "
@@ -207,16 +218,16 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
         raise DialogueError("No recognised speech was provided.")
 
     backend = os.environ.get("TULPAR_LLM_BACKEND", "ollama").strip().lower()
+    targets = target_prompt_lines()
     target_context = (
         "You are operating a software-only Webots simulation; never claim to have acted "
-        "in the physical world. The only movable objects are target-A (the gold/orange/yellow "
-        "marker or object) and target-B (the purple/violet marker or object). Set action to move_to_object only when "
+        f"in the physical world. The registered scene targets are: {targets}. Set action to move_to_object only when "
         "the user clearly asks TULPAR to go, drive, walk, move, or approach one of "
         "these objects. Include that exact target id. If the object is not named or "
         "the request is ambiguous, use conversation and ask a short clarifying question. "
         "Never infer or invent another target. This field is an intent proposal, not a "
         "motor command. TULPAR can converse, speak aloud, show one of its supported facial "
-        "emotions, gesture with its arms, and move between the registered scene targets "
+        "emotions, gesture with its arms, and move to a registered scene target "
         "when safety checks permit. It cannot pick up objects, touch people, or perform "
         "unimplemented actions. For all other utterances use conversation and target_id null."
     )
@@ -280,7 +291,7 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
         return enforce_spoken_navigation_intent(text, result)
     except InvalidTargetProposal:
         return InteractionResponse(
-            "I can only approach the yellow or purple marker. Please name one clearly.",
+            "I can only approach a visible marker, bench, or potted plant. Please name one clearly.",
             "thinking",
             "conversation",
             None,
@@ -330,3 +341,4 @@ def generate_local_vision_summary(image_bytes: bytes, user_question: str = "") -
         raise
     except Exception as error:
         raise DialogueError(f"Local vision request failed: {error}") from error
+

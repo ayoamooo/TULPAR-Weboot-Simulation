@@ -491,7 +491,7 @@ DEF OPERATOR_FINGERTIP Solid {
     0.1 0.9 0.3
   ]
 }
-Solid {
+DEF SCENE_BENCH Solid {
   translation -2.5 1.75 0.34
   children [
     Shape {
@@ -505,11 +505,15 @@ Solid {
     }
   ]
   name "bench"
+  model "scene-bench"
   boundingObject Box {
     size 1.25 0.45 0.45
   }
+  recognitionColors [
+    0.32 0.42 0.47
+  ]
 }
-Solid {
+DEF SCENE_PLANT Solid {
   translation 2.55 1.85 0.36
   children [
     Shape {
@@ -538,10 +542,15 @@ Solid {
     }
   ]
   name "potted plant"
+  model "scene-plant"
   boundingObject Cylinder {
     height 0.42
     radius 0.23
   }
+  recognitionColors [
+    0.35 0.23 0.14
+    0.16 0.52 0.28
+  ]
 }
 TULPAR {
   hidden position_0_0 -0.24999989353658447
@@ -909,3 +918,4 @@ Pose {
     }
   ]
 }
+

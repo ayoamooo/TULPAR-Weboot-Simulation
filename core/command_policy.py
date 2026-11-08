@@ -3,20 +3,12 @@
 from dataclasses import dataclass
 import re
 
+from core.scene_targets import TARGET_ALIASES
+
 
 EMOTIONS = {
     "neutral", "happy", "sad", "surprised", "angry", "sleepy", "wink", "love", "thinking"
 }
-TARGET_ALIASES = {
-    "target-A": ("target a", "marker a", "marked target a", "gold marker",
-                 "gold target", "gold object", "orange marker", "orange target",
-                 "orange object", "yellow marker", "yellow target", "yellow object"),
-    "target-B": ("target b", "marker b", "marked target b", "purple marker",
-                 "purple target", "purple object", "violet marker", "violet target",
-                 "violet object"),
-}
-
-
 @dataclass(frozen=True)
 class CommandDecision:
     action: str
@@ -104,13 +96,17 @@ def _is_mode_request(phrase: str, mode: str) -> bool:
 def explicit_navigation_target(text: str) -> str | None:
     """Resolve a named scene target only when the utterance clearly requests motion."""
     phrase = normalise(text)
-    motion_request = re.search(
-        r"\b(?:go|move|drive|walk|head|approach|navigate)\s+"
-        r"(?:(?:over|up|right|straight|closer)\s+)?(?:to|toward|towards)\b|"
-        r"\bcome\s+(?:over\s+)?to\b|\bget\s+to\b|\btake\s+me\s+(?:over\s+)?to\b",
-        phrase,
+    movement = (
+        r"(?:go|move|drive|walk|head|navigate)(?: over| up| closer)? "
+        r"(?:to|toward|towards|near|up to)"
+        r"|approach|come(?: over)? to|get(?: closer)? to|take me(?: over)? to"
     )
-    if not motion_request:
+    prefixes = (
+        rf"(?:please )?(?:tulpar[, ]+)?{movement}",
+        rf"(?:can|could|would) you (?:please )?{movement}",
+        rf"i (?:want|would like) you to {movement}",
+    )
+    if not any(re.match(rf"^{prefix}\b", phrase) for prefix in prefixes):
         return None
     matches = [
         target_id for target_id, aliases in TARGET_ALIASES.items()
@@ -128,3 +124,4 @@ def allow_action(decision: CommandDecision, mode: str, emergency_stop: bool) -> 
     if decision.action in {"approach_operator", "approach_marker", "approach_object"}:
         return mode == "floor"
     return True
+

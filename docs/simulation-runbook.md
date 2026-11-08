@@ -25,7 +25,7 @@ This guide covers the planned 40-trial Webots evaluation. It records simulated o
 | `T` | Switch between floor and tabletop mode; only between trials |
 | `C` | Cycle scene camera views |
 
-The controller handles “stop” immediately and keeps the existing repeatable trial commands available. Outside the scripted trial prompts, the local interaction model can interpret a natural request to move to a named registered object, such as “move to the yellow marker” or “drive to target B.” The controller still requires the same target to be named in the utterance, visible in a fresh camera-recognition frame, floor mode, and a cleared emergency stop. The model cannot send coordinates or motor commands. Use the microphone for a voice trial; use a keyboard shortcut only for placement, setup, or troubleshooting.
+The controller handles “stop” immediately and keeps the existing repeatable trial commands available. Outside the scripted trial prompts, the local interaction model can interpret a natural request to move to a named registered object, such as “move to the yellow marker”, “drive to the bench”, or “approach the potted plant”. The controller still requires the same target to be named in the utterance, visible in a fresh camera-recognition frame, floor mode, and a cleared emergency stop. The model cannot send coordinates or motor commands. Use the microphone for a voice trial; use a keyboard shortcut only for placement, setup, or troubleshooting.
 
 ## 3. Run the planned trials
 
@@ -59,3 +59,4 @@ The summary uses only rows and events that were recorded. It reports unmeasured 
 - The marker gesture and target labels are simulated. The run does not validate a physical camera’s human-pose or pointing accuracy.
 - The approach uses Webots recognition and simulator pose data as documented in the README; it does not demonstrate fully autonomous navigation in an unstructured room.
 - Material friction values, sensing behaviour, stopping measurements, and timing remain simulation results or provisional inputs. They must not be presented as measured physical hardware performance.
+
