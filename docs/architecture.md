@@ -7,16 +7,20 @@ operator microphone
         |
 local speech recognition
         |
-command policy ----> local dialogue model ----> response text and emotion
+immediate Stop gate -------------------------------> brake + invalidate pending reply
+        |
+local interaction model ----> reply, emotion, target intent (allow-listed IDs only)
+        |
+deterministic policy ----> mode + fresh camera visibility + spoken target + safety
         |
 Webots controller ----> tracks, arm joints, face display, speaker
         |
-event log and trial record
+aggregate technical event log (no transcript or audio)
 ```
 
-The command policy accepts only the declared research scenarios: approach the operator, approach the indicated marker, stop, greeting, and the supported emotional face states. It blocks new movement during tabletop mode or an active emergency stop. A stop command remains permitted in either state. The approach-to-operator scenario requires a fresh camera recognition of the operator before it reads the operator's Webots world pose as the navigation target; the pose is simulator ground truth, not a vision-model distance estimate.
+The local model can propose only a short conversational reply, a supported emotion, or navigation to one of two registered objects. It cannot output coordinates or actuator values. The controller accepts a target proposal only when the utterance explicitly requests movement to that same named object, its camera recognition is fresh, floor mode is active, and the emergency stop is clear. A stop token is processed before model inference. It invalidates queued and in-flight results, so a delayed response cannot restart an action. Existing operator-approach and indicated-marker procedures remain available as deterministic development controls.
 
-Keyboard input remains available for repeatable development tests. An optional Vosk microphone adapter provides English transcripts to the same command policy. Allow-listed movement commands bypass the dialogue model; ordinary conversation samples at most one camera image per second, requests a local Ollama vision summary, then submits the transcript and visual context to the local dialogue model on a background thread. The text model's structured response contains only a spoken reply and a supported emotion. Webots recognition samples at one-second intervals and selects a labelled marker from the simulated shoulder-to-fingertip image ray; keys `3` and `4` reposition the virtual fingertip for repeatable tests. This is a scene-controlled gesture proxy, not human pose estimation. See `voice-setup.md` for model and runtime requirements.
+Keyboard input remains available for repeatable development checks. Vosk sends English transcripts to the controller; the local interaction model runs on a worker thread, while Webots keeps its simulation loop responsive. A short bounded conversation history exists only in RAM. The selected model service may be Ollama or llama.cpp's local OpenAI-compatible endpoint. The controller logs event types and outcomes, not the recognized words, generated reply, audio, or conversation history. Webots recognition samples at one-second intervals; keys `3` and `4` reposition the virtual fingertip for the separate repeatable marker-pointing check. This is a scene-controlled gesture proxy, not human pose estimation. See `voice-setup.md` for model and runtime requirements.
 
 The robot's Webots Supervisor control moves its pose between the floor start and the tabletop support when the mode key is pressed. That makes tabletop mode physically distinct in the simulation while keeping placement an explicit scene action between scenarios.
 

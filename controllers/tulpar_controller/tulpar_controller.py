@@ -1,19 +1,13 @@
-"""Development controller for the TULPAR Webots demonstration scene.
-
-Keyboard input is deliberately kept as a development adapter. The command dispatcher
-is independent from it so voice, local LLM, and vision adapters can use the same gates.
-"""
+"""Controller for the interactive TULPAR Webots simulation."""
 
 from datetime import datetime, timezone
 from pathlib import Path
 from queue import Empty, Full, Queue
 from threading import Thread
-from tempfile import NamedTemporaryFile
 import json
 import math
 import os
 import sys
-import time
 
 from controller import Supervisor, Keyboard
 
@@ -21,9 +15,14 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from core.command_policy import allow_action, parse_spoken_command
+from core.command_policy import (
+    CommandDecision,
+    allow_action,
+    explicit_navigation_target,
+    parse_spoken_command,
+)
 from core.diagnostics import format_status_event
-from core.dialogue import DialogueError, generate_local_dialogue, generate_local_vision_summary
+from core.dialogue import DialogueError, generate_local_interaction
 from core.face_animation import display_oval_from_bounds, eye_pose, mouth_curve_points
 from core.microphone import VoskMicrophone
 from core.navigation import approach_command
@@ -148,11 +147,12 @@ class TulparController:
         self.event_file.parent.mkdir(exist_ok=True)
         self.transcripts = Queue()
         self.voice_errors = Queue()
-        self.dialogue_requests = Queue(maxsize=4)
+        self.dialogue_epoch = 0
+        self.dialogue_history = []  # transient conversation context; never written to logs
+        self.dialogue_requests = Queue(maxsize=1)
         self.dialogue_results = Queue()
         self.dialogue_worker = Thread(target=self._dialogue_loop, name="tulpar-dialogue", daemon=True)
         self.dialogue_worker.start()
-        self.last_vision_sample_time = 0.0
         self.voice_listener = None
         model_path = os.environ.get("TULPAR_VOSK_MODEL")
         if model_path:
@@ -180,42 +180,12 @@ class TulparController:
             request = self.dialogue_requests.get()
             if request is None:
                 return
-            transcript, image_bytes = request
-            vision_summary = None
-            vision_error = None
-            if image_bytes:
-                try:
-                    vision_summary = generate_local_vision_summary(image_bytes, transcript)
-                except DialogueError as error:
-                    vision_error = str(error)
+            epoch, transcript, history = request
             try:
-                result = generate_local_dialogue(transcript, vision_summary)
-                self.dialogue_results.put(("ok", transcript, result, bool(image_bytes), vision_error))
+                result = generate_local_interaction(transcript, history)
+                self.dialogue_results.put(("ok", epoch, transcript, result))
             except DialogueError as error:
-                self.dialogue_results.put(("error", transcript, str(error), bool(image_bytes), vision_error))
-
-    def capture_dialogue_frame(self):
-        """Capture at most one temporary JPEG frame per second during dialogue."""
-        now = time.monotonic()
-        if now - self.last_vision_sample_time < 1.0:
-            return None
-        image_path = None
-        try:
-            with NamedTemporaryFile(suffix=".jpg", delete=False) as image_file:
-                image_path = Path(image_file.name)
-            if self.camera.saveImage(str(image_path), 88) != 0:
-                self.log("vision", "frame_capture_failed")
-                return None
-            image = image_path.read_bytes()
-            self.last_vision_sample_time = now
-            self.log("vision", "frame_captured", bytes=len(image))
-            return image
-        except Exception as error:
-            self.log("vision", "frame_capture_failed", detail=str(error))
-            return None
-        finally:
-            if image_path:
-                image_path.unlink(missing_ok=True)
+                self.dialogue_results.put(("error", epoch, transcript, str(error)))
 
     def process_voice_io(self):
         while True:
@@ -234,24 +204,37 @@ class TulparController:
 
         while True:
             try:
-                status, transcript, result, vision_used, vision_error = self.dialogue_results.get_nowait()
+                status, epoch, transcript, result = self.dialogue_results.get_nowait()
             except Empty:
                 break
+            if epoch != self.dialogue_epoch:
+                self.log("local_dialogue", "stale_result_discarded")
+                continue
             if status == "ok":
-                self.set_emotion(result.emotion)
-                self.say(result.response)
-                self.log(
-                    "local_dialogue", "spoken", vision_used=vision_used,
-                    response_char_count=len(result.response), emotion=result.emotion,
-                )
-                if vision_error:
-                    self.log("vision", "model_error", detail=vision_error)
+                self.dialogue_history.extend((
+                    ("user", transcript), ("assistant", result.response)
+                ))
+                self.dialogue_history = self.dialogue_history[-8:]
+                if result.action == "move_to_object":
+                    self.handle_natural_object_request(transcript, result)
+                else:
+                    self.set_emotion(result.emotion)
+                    self.say(result.response)
+                self.log("local_dialogue", "spoken", action=result.action,
+                         response_char_count=len(result.response), emotion=result.emotion)
             else:
                 self.set_emotion("neutral")
                 self.say("My local conversation model is unavailable right now.")
-                self.log("local_dialogue", "error", detail=result, vision_used=vision_used)
-                if vision_error:
-                    self.log("vision", "model_error", detail=vision_error)
+                self.log("local_dialogue", "error", detail=result)
+
+    def cancel_pending_dialogue(self):
+        """Invalidate in-flight answers and discard requests that have not started."""
+        self.dialogue_epoch += 1
+        while True:
+            try:
+                self.dialogue_requests.get_nowait()
+            except Empty:
+                break
 
     def log(self, command, outcome, **extra):
         trial = getattr(self, "trial_recorder", None)
@@ -400,6 +383,7 @@ class TulparController:
             motor.setVelocity(right)
 
     def stop(self, reason="command"):
+        self.cancel_pending_dialogue()
         self.last_stop_had_motion = self.approach_motion_started
         self.last_stop_reason = reason
         self.tracks(0.0, 0.0)
@@ -452,7 +436,7 @@ class TulparController:
         self.log("face_display", "emotion_started", emotion=emotion)
         self.log("arm_pose", "emotion_started", emotion=emotion)
 
-    def begin_approach(self, target, label):
+    def begin_approach(self, target, label, response=None, emotion="thinking"):
         if self.mode != "floor":
             self.say("Movement is disabled in tabletop mode.")
             self.log(label, "rejected_tabletop")
@@ -469,9 +453,45 @@ class TulparController:
             if self.command_received_at is not None else self.robot.getTime()
         )
         self.log(label, "accepted", target=target)
-        self.set_emotion("thinking")
-        response = "Coming to you." if label == "come_to_me" else "Moving to the marked target."
+        self.set_emotion(emotion)
+        if response is None:
+            response = "Coming to you." if label == "come_to_me" else "Moving to the marked target."
         self.say(response)
+
+    def handle_natural_object_request(self, transcript, result):
+        """Validate a model-proposed target against speech, visibility and safety gates."""
+        if result.target_id not in self.marker_nodes:
+            self.say("I cannot identify that object in this scene. Please name the gold or purple marker.")
+            self.log("object_request", "rejected_unknown_target")
+            return
+        if explicit_navigation_target(transcript) != result.target_id:
+            self.say("Which object do you mean? Please name the gold or purple marker.")
+            self.log("object_request", "rejected_intent_not_explicit", target_id=result.target_id)
+            return
+        decision = CommandDecision("approach_object")
+        if not allow_action(decision, self.mode, self.emergency_stop):
+            self.say("I can only drive to an object in floor mode, with the emergency stop cleared.")
+            self.log("object_request", "rejected_safety_gate", target_id=result.target_id)
+            return
+        now = self.robot.getTime()
+        if (
+            self.last_recognition_time is None
+            or now - self.last_recognition_time > MAX_RECOGNITION_AGE
+            or result.target_id not in self.latest_recognition
+        ):
+            self.say("I cannot see that object clearly right now. Please repeat the request when it is in view.")
+            self.log("object_request", "rejected_not_visible", target_id=result.target_id)
+            return
+        position = self.marker_nodes[result.target_id].getPosition()
+        target = (float(position[0]), float(position[1]))
+        self.command_received_at = now
+        try:
+            self.begin_approach(
+                target, "natural_language_navigation", response=result.response,
+                emotion=result.emotion,
+            )
+        finally:
+            self.command_received_at = None
 
     def refresh_recognition(self):
         """Snapshot camera recognitions at the configured one-second cadence."""
@@ -818,12 +838,10 @@ class TulparController:
         )
 
     def dispatch_spoken_text(self, text):
-        """Route ASR text through the fixed action policy before any actuation.
-
-        Movement is dispatched directly from the allow-listed transcript. Only
-        ordinary conversation is sent to the local LLM, which cannot issue actions.
-        """
+        """Handle Stop directly; route other speech through policy and local intent."""
         decision = parse_spoken_command(text)
+        if decision.action != "stop":
+            self.cancel_pending_dialogue()
         if not allow_action(decision, self.mode, self.emergency_stop):
             self.log("spoken_text", "rejected_by_safety_gate", action=decision.action)
             self.say("That action is unavailable in the current mode.")
@@ -846,7 +864,9 @@ class TulparController:
         self.log("spoken_text", "conversation_needed")
         self.set_emotion("thinking")
         try:
-            self.dialogue_requests.put_nowait((text, self.capture_dialogue_frame()))
+            self.dialogue_requests.put_nowait(
+                (self.dialogue_epoch, text, tuple(self.dialogue_history))
+            )
         except Full:
             self.say("Please wait while I finish my last answer.")
             self.log("local_dialogue", "queue_full")

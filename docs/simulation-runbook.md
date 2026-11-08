@@ -25,7 +25,7 @@ This guide covers the planned 40-trial Webots evaluation. It records simulated o
 | `T` | Switch between floor and tabletop mode; only between trials |
 | `C` | Cycle scene camera views |
 
-The controller accepts fixed English voice commands independently of the local LLM: “come to me”, “go to that marker”, “stop”, and “say hello”. The dialogue model cannot command movement. Use the microphone for the planned command during a voice trial; use a keyboard shortcut only for setup or troubleshooting.
+The controller handles “stop” immediately and keeps the existing repeatable trial commands available. Outside the scripted trial prompts, the local interaction model can interpret a natural request to move to a named registered object, such as “move to the yellow marker” or “drive to target B.” The controller still requires the same target to be named in the utterance, visible in a fresh camera-recognition frame, floor mode, and a cleared emergency stop. The model cannot send coordinates or motor commands. Use the microphone for a voice trial; use a keyboard shortcut only for placement, setup, or troubleshooting.
 
 ## 3. Run the planned trials
 

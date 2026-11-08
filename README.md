@@ -18,7 +18,9 @@ The first scene represents a controlled university demonstration room. It includ
 - The controller records command, mode, outcome, response timing, and channel-start timestamps in `logs/tulpar-events.jsonl`.
 - The Webots console shows compact event lines with allowed decision details such as target, mode, and rejection reason. It does not print spoken transcripts or generated reply text.
 
-The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Allow-listed commands go directly through `core/command_policy.py`; ordinary conversation sends one camera frame per voice turn (capped at one per second) to local Ollama (`qwen2.5vl:3b`) for scene context, then asynchronously asks `qwen3:4b` for a response. The text model can return only a reply and a supported emotion, never a motion command. Webots' Speaker reads replies aloud.
+The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Immediate `stop` and the existing development commands are routed through `core/command_policy.py`. Other speech is sent to a local dialogue model asynchronously; Webots' Speaker reads its short response aloud and the face and arms use its validated emotion. The selected backend can be Ollama or the llama.cpp OpenAI-compatible server.
+
+Natural-language requests to approach a named scene object are interpreted by the local dialogue model. For example, ask it to “move to the yellow marker” or “drive to target B.” The model can propose only `target-A` (gold/orange/yellow) or `target-B` (purple); the controller separately checks that the utterance explicitly requests movement, names that same target, the target is freshly visible, floor mode is active, and the emergency stop is clear. The model never sends wheel or actuator values. Any spoken `stop` is handled immediately outside the model and invalidates pending model answers. Conversation context is kept in memory only; transcripts and replies are not written to the event log.
 
 ## Planned launch
 
@@ -41,7 +43,7 @@ Keys:
 
 The scene is a software simulation. Floor, carpet, and tabletop friction are separate provisional contact settings that need pilot tuning; they are not measured material properties. The simulation does not establish physical braking distance, power consumption, or hardware safety.
 
-For microphone and local dialogue setup, see [`docs/voice-setup.md`](docs/voice-setup.md). Without a Vosk model directory, microphone input is disabled and keyboard controls remain available. Without the Ollama service, ordinary conversation reports an unavailable local model; fixed commands such as `stop` continue to be handled by the controller.
+For microphone and local dialogue setup, see [`docs/voice-setup.md`](docs/voice-setup.md). Without a Vosk model directory, microphone input is disabled and keyboard controls remain available. Without the configured local model service, ordinary conversation reports an unavailable model; `stop` continues to be handled by the controller.
 
 Approach to the operator requires a fresh camera recognition of the operator. The simulation then uses the operator's Webots world pose for navigation; that pose is simulator ground truth rather than a vision-model estimate. Marker selection uses Webots recognition labels and the image-space alignment between simulated shoulder and fingertip markers. Keys `3` and `4` move the virtual fingertip to create repeatable test poses; this is a simulation input, not real-world pointing detection or a learned vision model. If the operator, gesture markers, or targets are not visible, or alignment is ambiguous, the controller rejects the command instead of choosing a fixed target.
 
