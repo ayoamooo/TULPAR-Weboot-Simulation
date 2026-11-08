@@ -391,7 +391,7 @@ class TulparController:
         for motor in self.right_tracks:
             motor.setVelocity(right)
 
-    def stop(self, reason="command"):
+    def stop(self, reason="command", *, announce=True):
         self.cancel_pending_dialogue()
         self.last_stop_had_motion = self.approach_motion_started
         self.last_stop_reason = reason
@@ -409,7 +409,8 @@ class TulparController:
         self.log("stop", "commanded", reason=reason)
         self.draw_face("surprised")
         self.log("face_display", "emotion_started", emotion="surprised")
-        self.say("Stopped.")
+        if announce:
+            self.say("Stopped.")
 
     def update_stop_measurement(self):
         now = self.robot.getTime()
@@ -736,7 +737,7 @@ class TulparController:
                 self.say(f"I am already in {self.mode} mode.")
                 self.log("mode", "unchanged", requested_mode=requested_mode)
                 return
-            self.stop("mode_change")
+            self.stop("mode_change", announce=False)
             if requested_mode == "tabletop":
                 self.translation_field.setSFVec3f(TABLETOP_START)
                 self.mode = "tabletop"
@@ -745,6 +746,7 @@ class TulparController:
                 self.mode = "floor"
             self.rotation_field.setSFRotation([0.0, 0.0, 1.0, 0.0])
             self.self_node.resetPhysics()
+            self.set_emotion("neutral")
             self.say(f"{self.mode} mode selected.")
             self.log("mode", "changed")
         elif value in {"emergency", "emergency_on", "emergency_off"}:
@@ -752,7 +754,7 @@ class TulparController:
                 not self.emergency_stop if value == "emergency"
                 else value == "emergency_on"
             )
-            self.stop("emergency_stop")
+            self.stop("emergency_stop", announce=False)
             self.draw_face("angry" if self.emergency_stop else "neutral")
             self.say("Emergency stop active." if self.emergency_stop else "Emergency stop cleared.")
             self.log("emergency_stop", "active" if self.emergency_stop else "cleared")
