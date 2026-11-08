@@ -9,10 +9,11 @@ EMOTIONS = {
 }
 TARGET_ALIASES = {
     "target-A": ("target a", "marker a", "marked target a", "gold marker",
-                 "gold target", "orange marker", "orange target", "yellow marker",
-                 "yellow target"),
+                 "gold target", "gold object", "orange marker", "orange target",
+                 "orange object", "yellow marker", "yellow target", "yellow object"),
     "target-B": ("target b", "marker b", "marked target b", "purple marker",
-                 "purple target", "violet marker", "violet target"),
+                 "purple target", "purple object", "violet marker", "violet target",
+                 "violet object"),
 }
 
 
@@ -51,10 +52,7 @@ def parse_spoken_command(text: str) -> CommandDecision:
     if _is_mode_request(phrase, "tabletop"):
         return CommandDecision("mode_tabletop")
 
-    if phrase in {
-        "come to me", "come here", "tulpar come to me", "tulpar come here",
-        "please come to me", "please come here",
-    }:
+    if _is_operator_approach_request(phrase):
         return CommandDecision("approach_operator")
     if phrase in {"go to that marker", "go to the marker", "go to marker"}:
         return CommandDecision("approach_marker")
@@ -78,6 +76,20 @@ def _is_stop_request(phrase: str) -> bool:
     ))
 
 
+def _is_operator_approach_request(phrase: str) -> bool:
+    return bool(re.fullmatch(
+        r"(?:please )?(?:tulpar )?(?:come|move|drive|approach) "
+        r"(?:over |closer )?(?:here|me|to me|toward me|towards me)|"
+        r"(?:please )?(?:tulpar )?come closer",
+        phrase,
+    ) or re.fullmatch(
+        r"(?:please )?(?:can you|could you|would you) (?:please )?"
+        r"(?:come|move|drive|approach) (?:over |closer )?(?:here|me|to me|toward me|towards me)|"
+        r"(?:please )?(?:can you|could you|would you) (?:please )?come closer",
+        phrase,
+    ))
+
+
 def _is_mode_request(phrase: str, mode: str) -> bool:
     mode_phrase = rf"{mode}(?: mode)?"
     patterns = (
@@ -93,8 +105,8 @@ def explicit_navigation_target(text: str) -> str | None:
     phrase = normalise(text)
     motion_request = re.search(
         r"\b(?:go|move|drive|walk|head|approach|navigate)\s+"
-        r"(?:(?:over|up|right|straight)\s+)?(?:to|toward|towards)\b|"
-        r"\bcome\s+(?:over\s+)?to\b|\bget\s+to\b|\btake\s+me\s+to\b",
+        r"(?:(?:over|up|right|straight|closer)\s+)?(?:to|toward|towards)\b|"
+        r"\bcome\s+(?:over\s+)?to\b|\bget\s+to\b|\btake\s+me\s+(?:over\s+)?to\b",
         phrase,
     )
     if not motion_request:

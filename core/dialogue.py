@@ -171,7 +171,7 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
     target_context = (
         "You are operating a software-only Webots simulation; never claim to have acted "
         "in the physical world. The only movable objects are target-A (the gold/orange/yellow "
-        "marked target) and target-B (the purple marked target). Set action to move_to_object only when "
+        "marker or object) and target-B (the purple/violet marker or object). Set action to move_to_object only when "
         "the user clearly asks TULPAR to go, drive, walk, move, or approach one of "
         "these objects. Include that exact target id. If the object is not named or "
         "the request is ambiguous, use conversation and ask a short clarifying question. "
