@@ -154,6 +154,7 @@ class TulparController:
         self.dialogue_worker = Thread(target=self._dialogue_loop, name="tulpar-dialogue", daemon=True)
         self.dialogue_worker.start()
         self.voice_listener = None
+        self.voice_input_active = False
         model_path = os.environ.get("TULPAR_VOSK_MODEL")
         if model_path:
             try:
@@ -161,6 +162,7 @@ class TulparController:
                     model_path, self.transcripts.put, self.voice_errors.put
                 )
                 self.voice_listener.start()
+                self.voice_input_active = True
                 self.log("microphone", "starting", model_path=model_path)
             except Exception as error:
                 self.voice_errors.put(str(error))
@@ -168,7 +170,11 @@ class TulparController:
             self.log("microphone", "disabled", reason="TULPAR_VOSK_MODEL is not configured")
         self.draw_face("neutral")
         self.set_camera_view("side")
-        self.say("TULPAR is ready.")
+        self.say(
+            "TULPAR is ready. Please speak."
+            if self.voice_input_active
+            else "Voice input is not configured. Please check the local voice setup."
+        )
         self.log("startup", "ready")
         self.showcase = Showcase(self)
         if self.auto_demo:

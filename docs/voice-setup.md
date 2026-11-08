@@ -1,6 +1,6 @@
 # Local voice interaction
 
-The voice path is local and optional. No audio is sent to a hosted service. Raw microphone audio, recognized words, generated replies, and conversation history are not written to the simulation event log. The event log stores event types, timestamps, outcomes, target IDs, and response emotion.
+Voice is the primary interaction path and runs locally once configured. No audio is sent to a hosted service. Raw microphone audio, recognized words, generated replies, and conversation history are not written to the simulation event log. The event log stores event types, timestamps, outcomes, target IDs, and response emotion.
 
 ## Components
 
@@ -16,13 +16,19 @@ The voice path is local and optional. No audio is sent to a hosted service. Raw 
 
 ## Configuration
 
+For the Windows launcher, copy `START-TULPAR.local.example.cmd` to
+`START-TULPAR.local.cmd` and edit the Vosk model path and selected dialogue backend.
+The local file is ignored by Git. `START-TULPAR.cmd` reads it before opening the
+interactive `tulpar_demo.wbt` world. Use `START-TULPAR-SHOWCASE.cmd` for the separate
+automatic visual presentation.
+
 Install the optional Python packages if the Python interpreter used by Webots does not already have them:
 
 ```powershell
 python -m pip install -e ".[voice]"
 ```
 
-Before launching Webots, configure the path to an extracted English Vosk model and the local Ollama model name in the same PowerShell session:
+If launching from PowerShell rather than the batch file, configure the path to an extracted English Vosk model and the local Ollama model name in that session:
 
 ```powershell
 $env:TULPAR_VOSK_MODEL = "C:\path\to\vosk-model-small-en-us"

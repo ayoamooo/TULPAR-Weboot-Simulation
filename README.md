@@ -1,8 +1,9 @@
 # TULPAR virtual demonstration
 
-For the automatic external 3D presentation, run **START-TULPAR.cmd** or open
-**worlds/tulpar_showcase.wbt**. Press **B** to replay and **C** to change the viewpoint.
-See [the walkthrough guide](docs/showcase.md).
+For the interactive, voice-controlled simulation, run **START-TULPAR.cmd** or open
+**worlds/tulpar_demo.wbt**. To run the scripted visual showcase separately, use
+**START-TULPAR-SHOWCASE.cmd** or open **worlds/tulpar_showcase.wbt**; press **B** to
+replay and **C** to change its viewpoint. See [the walkthrough guide](docs/showcase.md).
 
 The real-time run exported a silent MP4 and a Webots interactive 3D animation under `outputs/`. The current MP4 has a black interval and is not ready for presentation. Open `outputs/TULPAR-walkthrough-interactive.html` with its CSS, W3D, and JSON companion files kept beside it. The run evidence and export sizes are recorded in [the walkthrough run record](docs/showcase-run.md).
 
@@ -20,7 +21,7 @@ The first scene represents a controlled university demonstration room. It includ
 - The controller records command, mode, outcome, response timing, and channel-start timestamps in `logs/tulpar-events.jsonl`.
 - The Webots console shows compact event lines with allowed decision details such as target, mode, and rejection reason. It does not print spoken transcripts or generated reply text.
 
-The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Stop is checked on Vosk partial results for low-latency cancellation; safety commands, mode changes, greetings and direct emotion requests are handled through `core/command_policy.py`. Other speech is sent to a local dialogue model asynchronously; Webots' Speaker reads its short response aloud and the face and arms use its validated emotion. The selected backend can be Ollama or the llama.cpp OpenAI-compatible server.
+The controller supports keyboard development controls and a local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Stop is checked on Vosk partial results for low-latency cancellation; safety commands, mode changes, greetings and direct emotion requests are handled through `core/command_policy.py`. Other speech is sent to a local dialogue model asynchronously; Webots' Speaker reads its short response aloud and the face and arms use its validated emotion. The selected backend can be Ollama or the llama.cpp OpenAI-compatible server. Copy `START-TULPAR.local.example.cmd` to `START-TULPAR.local.cmd` and edit it once to set your local voice model and dialogue backend; the launcher reads it automatically.
 
 Natural-language requests to approach a named scene object are interpreted by the local dialogue model. For example, ask it to “move to the yellow marker” or “drive to target B.” The model can propose only `target-A` (gold/orange/yellow) or `target-B` (purple); the controller separately checks that the utterance explicitly requests movement, names that same target, the target is freshly visible, floor mode is active, and the emergency stop is clear. The model never sends wheel or actuator values. Any spoken `stop` is handled immediately outside the model and invalidates pending model answers. Conversation context is kept in memory only; transcripts and replies are not written to the event log.
 

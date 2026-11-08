@@ -5,6 +5,8 @@ logs/*.csv
 logs/
 outputs/
 .webots/
+START-TULPAR.local.cmd
+voice-models/
 worlds/.*.wbproj
 research/audio_eval/data/
 research/audio_eval/.venv/
