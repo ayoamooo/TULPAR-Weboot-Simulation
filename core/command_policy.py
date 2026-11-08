@@ -28,22 +28,64 @@ def normalise(text: str) -> str:
 
 def parse_spoken_command(text: str) -> CommandDecision:
     """Return an allowed action, or conversation when no declared command matches."""
-    phrase = normalise(text)
-    # Treat any clear spoken stop as an immediate safety/cancellation command,
-    # even when ASR adds polite words or punctuation.
-    if re.search(r"\bstop\b", phrase):
+    phrase = re.sub(r"[^a-z0-9\s'-]", " ", normalise(text))
+    phrase = normalise(phrase)
+    # Safety controls are deliberately matched before general conversation and
+    # before the local model. Avoid treating incidental phrases such as
+    # "don't stop" as a command.
+    if re.fullmatch(
+        r"(?:please )?(?:(?:activate|engage|enable|turn on) )?emergency stop",
+        phrase,
+    ):
+        return CommandDecision("emergency_on")
+    if re.fullmatch(
+        r"(?:please )?(?:clear|release|disengage|disable|turn off) emergency stop",
+        phrase,
+    ):
+        return CommandDecision("emergency_off")
+    if _is_stop_request(phrase):
         return CommandDecision("stop")
-    if phrase in {"come to me", "come here", "tulpar come to me"}:
+
+    if _is_mode_request(phrase, "floor"):
+        return CommandDecision("mode_floor")
+    if _is_mode_request(phrase, "tabletop"):
+        return CommandDecision("mode_tabletop")
+
+    if phrase in {
+        "come to me", "come here", "tulpar come to me", "tulpar come here",
+        "please come to me", "please come here",
+    }:
         return CommandDecision("approach_operator")
     if phrase in {"go to that marker", "go to the marker", "go to marker"}:
         return CommandDecision("approach_marker")
-    if phrase in {"say hello", "hello tulpar", "tulpar say hello"}:
+    if phrase in {
+        "say hello", "say hi", "hello tulpar", "hi tulpar", "tulpar say hello",
+        "tulpar say hi", "wave hello", "give me a wave", "greet me",
+    }:
         return CommandDecision("greet", "happy")
-    if phrase.startswith("show "):
-        requested = phrase.removeprefix("show ").strip()
-        if requested in EMOTIONS:
-            return CommandDecision("emotion", requested)
+    emotion_match = re.fullmatch(r"(?:show|look|act|be) (?:me )?([a-z]+)(?: face)?", phrase)
+    if emotion_match and emotion_match.group(1) in EMOTIONS:
+        return CommandDecision("emotion", emotion_match.group(1))
     return CommandDecision("conversation")
+
+
+def _is_stop_request(phrase: str) -> bool:
+    command = r"(?:stop|halt|freeze|cancel|abort)(?: now| moving| the robot| the tracks)?"
+    return bool(re.fullmatch(
+        rf"(?:please )?(?:tulpar )?{command}|"
+        rf"(?:please )?(?:can you|could you|would you) (?:please )?{command}",
+        phrase,
+    ))
+
+
+def _is_mode_request(phrase: str, mode: str) -> bool:
+    mode_phrase = rf"{mode}(?: mode)?"
+    patterns = (
+        rf"(?:please )?(?:switch|change|set|select|enter|activate|use) to {mode_phrase}",
+        rf"(?:please )?change into {mode_phrase}",
+        rf"(?:please )?(?:switch|change|set|select|put) (?:the robot )?(?:to )?{mode_phrase}",
+    )
+    return any(re.fullmatch(pattern, phrase) for pattern in patterns)
 
 
 def explicit_navigation_target(text: str) -> str | None:

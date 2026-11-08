@@ -169,16 +169,20 @@ def generate_local_interaction(transcript: str, history=()) -> InteractionRespon
 
     backend = os.environ.get("TULPAR_LLM_BACKEND", "ollama").strip().lower()
     target_context = (
-        "The only movable objects are target-A (the gold/orange/yellow marked target) and "
-        "target-B (the purple marked target). Set action to move_to_object only when "
+        "You are operating a software-only Webots simulation; never claim to have acted "
+        "in the physical world. The only movable objects are target-A (the gold/orange/yellow "
+        "marked target) and target-B (the purple marked target). Set action to move_to_object only when "
         "the user clearly asks TULPAR to go, drive, walk, move, or approach one of "
         "these objects. Include that exact target id. If the object is not named or "
         "the request is ambiguous, use conversation and ask a short clarifying question. "
         "Never infer or invent another target. This field is an intent proposal, not a "
-        "motor command. For all other utterances use conversation and target_id null."
+        "motor command. TULPAR can converse, speak aloud, show one of its supported facial "
+        "emotions, gesture with its arms, and move between the registered scene targets "
+        "when safety checks permit. It cannot pick up objects, touch people, or perform "
+        "unimplemented actions. For all other utterances use conversation and target_id null."
     )
     system_prompt = (
-        "You are TULPAR, a concise English-speaking student robot in a supervised "
+        "You are TULPAR, a concise English-speaking virtual robot in a supervised "
         "interactive simulation. Reply naturally in one or two short plain-English "
         "sentences suitable for speech. Choose a permitted facial emotion that fits. "
         "Do not use emoji, markdown, tools, coordinates, or actuator instructions. "

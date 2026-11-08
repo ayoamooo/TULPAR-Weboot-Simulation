@@ -5,7 +5,8 @@ The voice path is local and optional. No audio is sent to a hosted service. Raw 
 ## Components
 
 - Vosk transcribes English microphone audio. It needs a local model directory; the model files are not part of this repository.
-- A spoken `stop` bypasses model inference and is handled immediately. It cancels queued requests and invalidates any in-flight response so an old result cannot trigger new speech or movement after Stop.
+- A spoken `stop` is checked against Vosk partial results and bypasses model inference. It cancels queued requests and invalidates any in-flight response so an old result cannot trigger new speech or movement after Stop. `Emergency stop` latches the stop state; `clear emergency stop` releases it.
+- Voice commands can request floor or tabletop mode, a greeting wave, or a supported facial emotion. Keyboard inputs remain development controls and are also available for the repeatable test harness.
 - The local dialogue model receives a short system instruction, the current utterance, and up to four recent exchanges held temporarily in memory.
 - The model returns structured JSON containing a short reply, a supported emotion, and either ordinary conversation or a proposed move to one of the scene's two named targets. The controller checks the proposal against explicit movement words and target names in the transcript, camera recognition freshness, floor mode, and emergency-stop state. The model cannot return coordinates, wheel speeds, or actuator commands.
 - The target registry currently contains `target-A` (gold/orange) and `target-B` (purple). Requests to other objects or ambiguous references are not allowed to start motion; TULPAR asks the operator to clarify or select a known target.

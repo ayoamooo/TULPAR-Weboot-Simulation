@@ -715,13 +715,23 @@ class TulparController:
             self.log("greeting", "accepted")
             self.set_emotion("happy")
             self.say("Hello.")
-        elif value == "mode":
+        elif value in {"mode", "mode_floor", "mode_tabletop"}:
             if self.trial_recorder.current is not None:
                 self.say("Finish the active trial before changing mode.")
                 self.log("mode", "change_rejected_active_trial")
                 return
+            requested_mode = (
+                "tabletop" if value == "mode" and self.mode == "floor"
+                else "floor" if value == "mode"
+                else "floor" if value == "mode_floor"
+                else "tabletop"
+            )
+            if requested_mode == self.mode:
+                self.say(f"I am already in {self.mode} mode.")
+                self.log("mode", "unchanged", requested_mode=requested_mode)
+                return
             self.stop("mode_change")
-            if self.mode == "floor":
+            if requested_mode == "tabletop":
                 self.translation_field.setSFVec3f(TABLETOP_START)
                 self.mode = "tabletop"
             else:
@@ -731,8 +741,11 @@ class TulparController:
             self.self_node.resetPhysics()
             self.say(f"{self.mode} mode selected.")
             self.log("mode", "changed")
-        elif value == "emergency":
-            self.emergency_stop = not self.emergency_stop
+        elif value in {"emergency", "emergency_on", "emergency_off"}:
+            self.emergency_stop = (
+                not self.emergency_stop if value == "emergency"
+                else value == "emergency_on"
+            )
             self.stop("emergency_stop")
             self.draw_face("angry" if self.emergency_stop else "neutral")
             self.say("Emergency stop active." if self.emergency_stop else "Emergency stop cleared.")
@@ -851,6 +864,10 @@ class TulparController:
             return
         handlers = {
             "stop": lambda: self.command("stop"),
+            "emergency_on": lambda: self.command("emergency_on"),
+            "emergency_off": lambda: self.command("emergency_off"),
+            "mode_floor": lambda: self.command("mode_floor"),
+            "mode_tabletop": lambda: self.command("mode_tabletop"),
             "approach_operator": lambda: self.command("operator"),
             "approach_marker": lambda: self.command("marker"),
             "greet": lambda: self.command("greet"),

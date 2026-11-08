@@ -12,13 +12,15 @@ The first scene represents a controlled university demonstration room. It includ
 
 ## Intended behaviour
 
-- Floor mode: `come to me`, `go to marker`, and `stop` control the tracked base.
+- The operator speaks naturally; local speech recognition transcribes the utterance, and a local model answers aloud, selects a facial emotion, or proposes a move to a named scene target.
+- Floor mode: requests such as `come to me` or `move to the purple marker` control the simulated tracked base. TULPAR only navigates to the two visible, registered markers.
 - Tabletop mode: the tracks remain locked; speech, animated face expressions, and arm gestures remain available.
-- `say hello` runs a non-contact wave with the tracks stopped.
+- Spoken phrases can also request a greeting wave or a supported expression. `switch to floor mode` and `switch to tabletop mode` reposition the simulated robot between its two placements.
+- `stop` or `emergency stop` bypasses the language model and cancels pending dialogue. The emergency stop remains latched until the operator says `clear emergency stop`.
 - The controller records command, mode, outcome, response timing, and channel-start timestamps in `logs/tulpar-events.jsonl`.
 - The Webots console shows compact event lines with allowed decision details such as target, mode, and rejection reason. It does not print spoken transcripts or generated reply text.
 
-The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Immediate `stop` and the existing development commands are routed through `core/command_policy.py`. Other speech is sent to a local dialogue model asynchronously; Webots' Speaker reads its short response aloud and the face and arms use its validated emotion. The selected backend can be Ollama or the llama.cpp OpenAI-compatible server.
+The controller supports keyboard development controls and an optional local voice path. Microphone speech is transcribed by Vosk when `TULPAR_VOSK_MODEL` points to a local English model directory. Stop is checked on Vosk partial results for low-latency cancellation; safety commands, mode changes, greetings and direct emotion requests are handled through `core/command_policy.py`. Other speech is sent to a local dialogue model asynchronously; Webots' Speaker reads its short response aloud and the face and arms use its validated emotion. The selected backend can be Ollama or the llama.cpp OpenAI-compatible server.
 
 Natural-language requests to approach a named scene object are interpreted by the local dialogue model. For example, ask it to “move to the yellow marker” or “drive to target B.” The model can propose only `target-A` (gold/orange/yellow) or `target-B` (purple); the controller separately checks that the utterance explicitly requests movement, names that same target, the target is freshly visible, floor mode is active, and the emergency stop is clear. The model never sends wheel or actuator values. Any spoken `stop` is handled immediately outside the model and invalidates pending model answers. Conversation context is kept in memory only; transcripts and replies are not written to the event log.
 
@@ -26,7 +28,16 @@ Natural-language requests to approach a named scene object are interpreted by th
 
 Open `worlds/tulpar_demo.wbt` in Webots and run the simulation in real-time mode. The scene needs Webots R2025a or a compatible later release.
 
-Keys:
+Voice examples:
+
+- `TULPAR, go to the yellow marker.`
+- `Could you come to me?`
+- `Tell me what you can do.`
+- `Say hello.` / `Show me happy.`
+- `Switch to tabletop mode.` / `Switch to floor mode.`
+- `Stop.` / `Emergency stop.` / `Clear emergency stop.`
+
+Keys (development and test controls):
 
 - `1` — approach the operator.
 - `2` — approach the marker indicated by the simulated pointing pose.
